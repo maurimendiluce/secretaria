@@ -39,3 +39,106 @@ button.ghost{background:transparent;color:var(--fg);border:1px solid var(--line)
 .login h1{margin:0}.login label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mut)}
 .login input{padding:8px;border:1px solid var(--line);border-radius:6px;background:transparent;color:var(--fg);font-size:14px}
 .err{color:#c0392b}
+
+.draft-layout{
+  display:flex;
+  width:100%;
+  min-height:600px;
+  background:var(--card);
+  border:1px solid var(--line);
+  border-radius:8px;
+  overflow:hidden;
+}
+
+.draft-sidebar{
+  width:280px;
+  min-width:280px;
+  border-right:1px solid var(--line);
+  background:var(--bg);
+}
+
+.new-draft{
+  width:100%;
+  border-radius:0;
+  padding:10px;
+}
+
+.draft-list{
+  display:flex;
+  flex-direction:column;
+}
+
+.draft-item{
+  width:100%;
+  text-align:left;
+  background:transparent;
+  color:var(--fg);
+  border-radius:0;
+  border-bottom:1px solid var(--line);
+  padding:10px 12px;
+}
+
+.draft-item:hover{
+  background:var(--line);
+}
+
+.draft-item strong,
+.draft-item span{
+  display:block;
+}
+
+.draft-item span{
+  color:var(--mut);
+  font-size:12px;
+  margin-top:3px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+.draft-editor{
+  flex:1;
+  padding:20px;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+
+.draft-editor label{
+  font-size:12px;
+  color:var(--mut);
+  margin-top:8px;
+}
+
+.draft-editor input,
+.draft-editor textarea{
+  width:100%;
+  border:1px solid var(--line);
+  border-radius:6px;
+  padding:8px;
+  background:var(--card);
+  color:var(--fg);
+}
+
+.draft-editor textarea{
+  resize:vertical;
+  min-height:300px;
+}
+
+.draft-actions{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  margin-top:12px;
+}
+
+.draft-info{
+  color:var(--mut);
+  font-size:12px;
+  margin-right:auto;
+}
+
+.draft-empty{
+  color:var(--mut);
+  text-align:center;
+  margin:auto;
+}

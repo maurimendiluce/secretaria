@@ -104,7 +104,8 @@
    $("tabs").replaceChildren.apply($("tabs"), Object.keys(TABLES).map(function (n) {
   return el("button", { class: "tab", "data-n": n, onclick: function () { open(n); } }, TABLES[n].label);
 }).concat([
-  el("button", { class: "tab", "data-n": "formulario", onclick: function () { openForm(); } }, "Formulario")
+  el("button", { class: "tab", "data-n": "formulario", onclick: function () { openForm(); } }, "Formulario"),
+  el("button", { class: "tab", "data-n": "borradores", onclick: function () { openBorradores(); } }, "Borradores")
 ]));
     return open(S.tab);
   }
@@ -150,6 +151,300 @@
 
   status("");
 }
+
+function openBorradores() {
+  S.tab = "borradores";
+
+  document.querySelectorAll(".tab").forEach(function (b) {
+    b.classList.toggle(
+      "on",
+      b.getAttribute("data-n") === "borradores"
+    );
+  });
+
+  $("tools").replaceChildren();
+  $("grid").replaceChildren();
+
+  loadBorradores();
+}
+
+async function loadBorradores() {
+  status("Cargando…");
+
+  var res = await sb
+    .from("borradores")
+    .select("*")
+    .order("updated_at", { ascending: false });
+
+  if (res.error) {
+    return status("Error: " + errMsg(res.error), true);
+  }
+
+  renderBorradores(res.data);
+  status("");
+}
+
+function renderBorradores(rows) {
+  var selected = rows.length ? rows[0] : null;
+
+  var list = el("div", { class: "draft-list" });
+
+  rows.forEach(function (r) {
+    list.append(
+      el(
+        "button",
+        {
+          class: "draft-item",
+          "data-id": r.id,
+          onclick: function () {
+            renderBorradorEditor(rows, r.id);
+          }
+        },
+        el("strong", {}, r.asunto || "(Sin asunto)"),
+        el("span", {}, r.destinatario || "")
+      )
+    );
+  });
+
+  var layout = el(
+    "div",
+    { class: "draft-layout" },
+
+    el(
+      "aside",
+      { class: "draft-sidebar" },
+
+      el(
+        "button",
+        {
+          class: "new-draft",
+          onclick: newBorrador
+        },
+        "+ Nuevo borrador"
+      ),
+
+      list
+    ),
+
+    el(
+      "section",
+      {
+        id: "draft-editor",
+        class: "draft-editor"
+      }
+    )
+  );
+
+  $("grid").replaceChildren(layout);
+
+  if (selected) {
+    renderBorradorEditor(rows, selected.id);
+  } else {
+    renderEmptyDraft();
+  }
+}
+
+function renderBorradorEditor(rows, id) {
+  var r = rows.find(function (x) {
+    return x.id === id;
+  });
+
+  if (!r) return;
+
+  $("draft-editor").replaceChildren(
+
+    el("label", {}, "Destinatario"),
+
+    el("input", {
+      id: "draft-to",
+      value: r.destinatario || "",
+      placeholder: "correo@ejemplo.com"
+    }),
+
+    el("label", {}, "CC"),
+
+    el("input", {
+      id: "draft-cc",
+      value: r.cc || "",
+      placeholder: "correo@ejemplo.com"
+    }),
+
+    el("label", {}, "Asunto"),
+
+    el("input", {
+      id: "draft-subject",
+      value: r.asunto || "",
+      placeholder: "Asunto del mensaje"
+    }),
+
+    el("label", {}, "Mensaje"),
+
+    el("textarea", {
+      id: "draft-body",
+      rows: "15",
+      placeholder: "Escribí el mensaje..."
+    }),
+
+    el(
+      "div",
+      { class: "draft-actions" },
+
+      el(
+        "span",
+        {
+          id: "draft-info",
+          class: "draft-info"
+        },
+        r.updated_by
+          ? "Última modificación: " + r.updated_by
+          : ""
+      ),
+
+      el(
+        "button",
+        {
+          class: "ghost",
+          onclick: function () {
+            deleteBorrador(r);
+          }
+        },
+        "Eliminar"
+      )
+    )
+  );
+
+  $("draft-body").value = r.cuerpo || "";
+
+  activarAutoGuardado(r);
+}
+
+var draftSaveTimer = null;
+
+function activarAutoGuardado(r) {
+  ["draft-to", "draft-cc", "draft-subject", "draft-body"].forEach(function (id) {
+
+    var input = $(id);
+
+    if (!input) return;
+
+    input.addEventListener("input", function () {
+
+      clearTimeout(draftSaveTimer);
+
+      status("Cambios pendientes…");
+
+      draftSaveTimer = setTimeout(function () {
+        saveBorrador(r);
+      }, 1000);
+
+    });
+  });
+}
+
+async function saveBorrador(r) {
+
+  var patch = {
+    destinatario: $("draft-to").value,
+    cc: $("draft-cc").value,
+    asunto: $("draft-subject").value,
+    cuerpo: $("draft-body").value
+  };
+
+  var res = await sb
+    .from("borradores")
+    .update(patch)
+    .eq("id", r.id)
+    .select("updated_at, updated_by")
+    .single();
+
+  if (res.error) {
+    return status(
+      "No se pudo guardar: " + errMsg(res.error),
+      true
+    );
+  }
+
+  r.destinatario = patch.destinatario;
+  r.cc = patch.cc;
+  r.asunto = patch.asunto;
+  r.cuerpo = patch.cuerpo;
+  r.updated_at = res.data.updated_at;
+  r.updated_by = res.data.updated_by;
+
+  status("Guardado ✓");
+
+  setTimeout(function () {
+    if (
+      $("status") &&
+      $("status").textContent === "Guardado ✓"
+    ) {
+      status("");
+    }
+  }, 1200);
+}
+
+async function newBorrador() {
+
+  status("Creando…");
+
+  var res = await sb
+    .from("borradores")
+    .insert({
+      estado: "Borrador"
+    })
+    .select("*")
+    .single();
+
+  if (res.error) {
+    return status(
+      "No se pudo crear: " + errMsg(res.error),
+      true
+    );
+  }
+
+  await loadBorradores();
+
+  setTimeout(function () {
+    var input = $("draft-to");
+
+    if (input) {
+      input.focus();
+    }
+  }, 100);
+}
+
+async function deleteBorrador(r) {
+
+  if (!confirm("¿Eliminar este borrador?")) {
+    return;
+  }
+
+  var res = await sb
+    .from("borradores")
+    .delete()
+    .eq("id", r.id);
+
+  if (res.error) {
+    return status(
+      "No se pudo eliminar: " + errMsg(res.error),
+      true
+    );
+  }
+
+  await loadBorradores();
+}
+
+function renderEmptyDraft() {
+
+  $("draft-editor").replaceChildren(
+    el(
+      "div",
+      { class: "draft-empty" },
+      "Seleccioná un borrador o creá uno nuevo."
+    )
+  );
+}
+
 
   async function load(rebuildTools) {
     var name = S.tab;
