@@ -187,11 +187,15 @@ async function loadBorradores() {
 }
 
 function renderBorradores(rows) {
-  var selected = rows.length ? rows[0] : null;
+  var visible = rows.filter(function (r) {
+    return !draftFilter || draftState(r) === draftFilter;
+  });
+
+  var selected = visible.length ? visible[0] : null;
 
   var list = el("div", { class: "draft-list" });
 
-  rows.forEach(function (r) {
+  visible.forEach(function (r) {
     list.append(
       el(
         "button",
@@ -199,10 +203,15 @@ function renderBorradores(rows) {
           class: "draft-item",
           "data-id": r.id,
           onclick: function () {
-            renderBorradorEditor(rows, r.id);
+            switchBorrador(rows, r.id);
           }
         },
-        el("strong", {}, r.asunto || "(Sin asunto)"),
+        el(
+          "div",
+          { class: "draft-row" },
+          el("strong", {}, r.asunto || "(Sin asunto)"),
+          el("small", { class: "st-badge st-" + draftState(r) }, draftState(r))
+        ),
         el("span", {}, r.destinatario || "")
       )
     );
@@ -223,6 +232,24 @@ function renderBorradores(rows) {
           onclick: newBorrador
         },
         "+ Nuevo borrador"
+      ),
+
+      el(
+        "select",
+        {
+          class: "draft-filter",
+          title: "Filtrar por estado",
+          onchange: function () {
+            draftFilter = this.value;
+            renderBorradores(rows);
+          }
+        },
+        el("option", { value: "" }, "Todos los estados"),
+        DRAFT_STATES.map(function (s) {
+          var o = el("option", { value: s }, s);
+          if (s === draftFilter) o.selected = true;
+          return o;
+        })
       ),
 
       list
@@ -254,6 +281,24 @@ function renderBorradorEditor(rows, id) {
   if (!r) return;
 
   $("draft-editor").replaceChildren(
+
+    el(
+      "div",
+      { class: "draft-state-row" },
+      el("label", {}, "Estado"),
+      el(
+        "select",
+        {
+          id: "draft-state",
+          onchange: function () {
+            setBorradorEstado(r, this.value);
+          }
+        },
+        DRAFT_STATES.map(function (s) {
+          return el("option", { value: s }, s);
+        })
+      )
+    ),
 
     el("label", {}, "Destinatario"),
 
@@ -316,11 +361,31 @@ function renderBorradorEditor(rows, id) {
   );
 
   $("draft-body").value = r.cuerpo || "";
+  $("draft-state").value = draftState(r);
 
   activarAutoGuardado(r);
 }
 
 var draftSaveTimer = null;
+var pendingDraft = null; // { r, patch }: lo último escrito que todavía no se guardó
+
+function leerCamposBorrador() {
+  return {
+    destinatario: $("draft-to").value,
+    cc: $("draft-cc").value,
+    asunto: $("draft-subject").value,
+    cuerpo: $("draft-body").value
+  };
+}
+
+// Guarda ya lo pendiente (si hay). Se usa antes de cambiar de borrador, crear o borrar.
+async function flushDraftSave() {
+  clearTimeout(draftSaveTimer);
+  draftSaveTimer = null;
+  var p = pendingDraft;
+  pendingDraft = null;
+  if (p) await saveBorrador(p.r, p.patch);
+}
 
 function activarAutoGuardado(r) {
   ["draft-to", "draft-cc", "draft-subject", "draft-body"].forEach(function (id) {
@@ -335,22 +400,16 @@ function activarAutoGuardado(r) {
 
       status("Cambios pendientes…");
 
-      draftSaveTimer = setTimeout(function () {
-        saveBorrador(r);
-      }, 1000);
+      // Se copia lo escrito en este momento: si cambiás de borrador o de solapa antes de que se guarde,
+      // se guarda en el borrador correcto y no se mezcla con los campos de otro.
+      pendingDraft = { r: r, patch: leerCamposBorrador() };
+      draftSaveTimer = setTimeout(flushDraftSave, 1000);
 
     });
   });
 }
 
-async function saveBorrador(r) {
-
-  var patch = {
-    destinatario: $("draft-to").value,
-    cc: $("draft-cc").value,
-    asunto: $("draft-subject").value,
-    cuerpo: $("draft-body").value
-  };
+async function saveBorrador(r, patch) {
 
   var res = await sb
     .from("borradores")
@@ -387,12 +446,15 @@ async function saveBorrador(r) {
 
 async function newBorrador() {
 
+  await flushDraftSave();
+  draftFilter = ""; // para que el borrador nuevo no quede oculto por un filtro
+
   status("Creando…");
 
   var res = await sb
     .from("borradores")
     .insert({
-      estado: "Borrador"
+      estado: "Revisar"
     })
     .select("*")
     .single();
@@ -421,6 +483,10 @@ async function deleteBorrador(r) {
     return;
   }
 
+  clearTimeout(draftSaveTimer); // lo pendiente es de este borrador: no tiene sentido guardarlo
+  draftSaveTimer = null;
+  pendingDraft = null;
+
   var res = await sb
     .from("borradores")
     .delete()
@@ -434,6 +500,54 @@ async function deleteBorrador(r) {
   }
 
   await loadBorradores();
+}
+
+// ---------- Estado del borrador: Revisar / Enviado ----------
+var DRAFT_STATES = ["Revisar", "Enviado"];
+var draftFilter = ""; // "", "Revisar" o "Enviado"
+
+// Los borradores viejos (estado vacío o "Borrador") se muestran como "Revisar".
+function draftState(r) {
+  return r.estado === "Enviado" ? "Enviado" : "Revisar";
+}
+
+async function switchBorrador(rows, id) {
+  await flushDraftSave();
+  renderBorradorEditor(rows, id);
+}
+
+async function setBorradorEstado(r, value) {
+  await flushDraftSave();
+
+  status("Guardando…");
+
+  var res = await sb
+    .from("borradores")
+    .update({ estado: value })
+    .eq("id", r.id)
+    .select("updated_at, updated_by")
+    .single();
+
+  if (res.error) {
+    if ($("draft-state")) $("draft-state").value = draftState(r);
+    return status("No se pudo guardar el estado: " + errMsg(res.error), true);
+  }
+
+  r.estado = value;
+  r.updated_at = res.data.updated_at;
+  r.updated_by = res.data.updated_by;
+
+  // Se actualiza la etiqueta de la lista sin recargarla
+  var badge = document.querySelector('.draft-item[data-id="' + r.id + '"] .st-badge');
+  if (badge) {
+    badge.textContent = value;
+    badge.className = "st-badge st-" + value;
+  }
+
+  status("Guardado ✓");
+  setTimeout(function () {
+    if ($("status") && $("status").textContent === "Guardado ✓") status("");
+  }, 1200);
 }
 
 function renderEmptyDraft() {

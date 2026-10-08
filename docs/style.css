@@ -187,3 +187,12 @@ button.ghost{background:transparent;color:var(--fg);border:1px solid var(--line)
   font-size:12px;
   white-space:nowrap;
 }
+/* Estado de los borradores: Revisar / Enviado */
+.draft-row{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.st-badge{font-size:11px;font-weight:600;padding:1px 8px;border-radius:999px;white-space:nowrap;color:var(--fg)}
+.st-badge.st-Revisar{background:var(--prog)}
+.st-badge.st-Enviado{background:var(--ok)}
+.draft-filter{width:calc(100% - 16px);margin:8px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--fg)}
+.draft-state-row{display:flex;align-items:center;gap:10px}
+.draft-state-row label{margin-top:0}
+.draft-state-row select{padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--fg)}
