@@ -73,7 +73,7 @@
     S.data = null;
     root.replaceChildren(
       el("form", { class: "login", onsubmit: onLogin },
-        el("h1", {}, "Seguimiento"),
+        el("h1", {}, "Gestión de Secretaría"),
         el("label", {}, "Email", el("input", { type: "email", name: "email", required: "", autocomplete: "username" })),
         el("label", {}, "Contraseña", el("input", { type: "password", name: "password", required: "", autocomplete: "current-password" })),
         el("button", { type: "submit" }, "Ingresar"),
@@ -92,7 +92,7 @@
   function showApp() {
     root.replaceChildren(
       el("header", { class: "bar" },
-        el("h1", {}, "Seguimiento"),
+        el("h1", {}, "Gestión de Secretaría"),
         el("nav", { id: "tabs" }),
         el("span", { class: "who" }, S.user.email),
         el("button", { class: "ghost", onclick: function () { sb.auth.signOut(); } }, "Salir")
