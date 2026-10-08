@@ -3,6 +3,7 @@
 
   var ESTADOS = ["Pendiente", "En proceso", "Terminado"];
   var RESPONSABLES = ["Naty", "Mauri", "Naty / Mauri"];
+  var FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSf_FP644YtLRl1_abTDKr4__p3CdIBGOSjZo6GvkKius5I1_g/viewform?embedded=true";
 
   function today() {
     var d = new Date(), p = function (n) { return String(n).padStart(2, "0"); };
@@ -100,9 +101,11 @@
       el("div", { id: "grid", class: "gridwrap" }),
       el("div", { id: "status", class: "status" })
     );
-    $("tabs").replaceChildren.apply($("tabs"), Object.keys(TABLES).map(function (n) {
-      return el("button", { class: "tab", "data-n": n, onclick: function () { open(n); } }, TABLES[n].label);
-    }));
+   $("tabs").replaceChildren.apply($("tabs"), Object.keys(TABLES).map(function (n) {
+  return el("button", { class: "tab", "data-n": n, onclick: function () { open(n); } }, TABLES[n].label);
+}).concat([
+  el("button", { class: "tab", "data-n": "formulario", onclick: function () { openForm(); } }, "Formulario")
+]));
     return open(S.tab);
   }
 
@@ -124,6 +127,29 @@
     document.querySelectorAll(".tab").forEach(function (b) { b.classList.toggle("on", b.getAttribute("data-n") === name); });
     return load(true);
   }
+
+  function openForm() {
+  S.tab = "formulario";
+
+  document.querySelectorAll(".tab").forEach(function (b) {
+    b.classList.toggle("on", b.getAttribute("data-n") === "formulario");
+  });
+
+  $("tools").replaceChildren();
+
+  $("grid").replaceChildren(
+    el("iframe", {
+      src: FORM_URL,
+      width: "100%",
+      height: "800",
+      frameborder: "0",
+      marginheight: "0",
+      marginwidth: "0"
+    })
+  );
+
+  status("");
+}
 
   async function load(rebuildTools) {
     var name = S.tab;
@@ -164,8 +190,12 @@
   document.addEventListener("focusout", function () {
     setTimeout(function () { if (S.pending && !inGrid()) { S.pending = false; refresh(); } }, 250);
   });
-  setInterval(function () { if (!document.hidden && S.data) refresh(); }, 60000); // respaldo por si se corta la conexión en vivo
+  
+  //setInterval(function () { if (!document.hidden && S.data) refresh(); }, 60000); // respaldo por si se corta la conexión en vivo
 
+  setInterval(function () { 
+  if (!document.hidden && S.data && S.tab !== "formulario") refresh(); 
+}, 60000);
   // ---------- Tabla ----------
   function colIdx(h) { return S.data.cols.findIndex(function (c) { return c.h.toLowerCase() === h; }); }
 
