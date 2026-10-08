@@ -19,6 +19,8 @@
       C("observaciones", "Observaciones"), C("responsable", "Responsable", "select", RESPONSABLES),
       C("estado", "Estado", "select", ESTADOS), C("notas", "Notas / seguimiento")],
       filters: ["responsable", "estado"],
+      // Al entrar a la pestaña se muestran solo estos valores (se pueden cambiar con el filtro). Si se quita esta línea, se muestra todo.
+      filterDefaults: { estado: ["Pendiente", "En proceso"] },
       defaults: function () { return { fecha: today(), estado: "Pendiente" }; } },
     comision: { label: "Comisión", cols: [
       C("fecha", "Comisión", "date"),
@@ -43,7 +45,7 @@
   var cfg = window.SEGUIMIENTO_CONFIG || {};
   var sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
   var root = document.getElementById("app");
-  var S = { tab: "seguimiento", data: null, user: null, channel: null, timer: null, pending: false };
+  var S = { tab: "seguimiento", data: null, user: null, channel: null, timer: null, pending: false, sel: {} };
   var $ = function (id) { return document.getElementById(id); };
 
   function el(tag, attrs) {
@@ -952,14 +954,55 @@ setInterval(function () {
 
   function tools() {
     var items = [el("input", { type: "search", id: "q", placeholder: "Buscar…", oninput: filter })];
+    // Filtros de selección múltiple. Al entrar a la pestaña arrancan con los valores de filterDefaults (si los hay).
+    var defs = TABLES[S.tab].filterDefaults || {};
+    S.sel = {};
     (TABLES[S.tab].filters || []).forEach(function (k) {
       var i = S.data.cols.findIndex(function (c) { return c.i === k; });
-      if (i >= 0) items.push(el("select", { class: "ff", "data-i": i, onchange: filter }));
+      if (i < 0) return;
+      if (defs[k]) S.sel[i] = defs[k].slice();
+      items.push(el("div", { class: "mf", "data-i": i },
+        el("button", { type: "button", class: "ghost mf-btn", onclick: function (ev) { toggleMF(ev.currentTarget.parentNode); } }),
+        el("div", { class: "mf-pop", hidden: "" })));
     });
     items.push(el("button", { onclick: add }, "+ Nueva fila"));
     items.push(el("button", { class: "ghost", onclick: function () { load(false); } }, "Recargar"));
     items.push(el("button", { class: "ghost", onclick: exportXlsx }, "Exportar a Excel"));
+    items.push(el("span", { class: "count", id: "count" }));
     $("tools").replaceChildren.apply($("tools"), items);
+  }
+
+  // ---------- Filtros de selección múltiple ----------
+  function closeMFs() { document.querySelectorAll(".mf-pop").forEach(function (p) { p.hidden = true; }); }
+  function toggleMF(mf) {
+    var pop = mf.querySelector(".mf-pop"), wasHidden = pop.hidden;
+    closeMFs();
+    pop.hidden = !wasHidden;
+  }
+  document.addEventListener("click", function (ev) { if (!ev.target.closest || !ev.target.closest(".mf")) closeMFs(); });
+  document.addEventListener("keydown", function (ev) { if (ev.key === "Escape") closeMFs(); });
+
+  function optLabel(c, v) { return c.type === "date" ? fmtDate(v) : ((c.optionLabels && c.optionLabels[v]) || v); }
+
+  function mfLabel(mf, i) {
+    var c = S.data.cols[i], vals = S.sel[i] || [];
+    var txt = !vals.length ? "todos" : vals.length <= 2 ? vals.map(function (v) { return optLabel(c, v); }).join(", ") : vals.length + " seleccionados";
+    var btn = mf.querySelector(".mf-btn");
+    btn.textContent = c.h + ": " + txt + " ▾";
+    btn.classList.toggle("on", vals.length > 0);
+  }
+
+  function onMFChange(mf, i) {
+    S.sel[i] = Array.prototype.map.call(mf.querySelectorAll(".mf-pop input:checked"), function (x) { return x.value; });
+    mfLabel(mf, i);
+    filter();
+  }
+
+  function clearMF(mf, i) {
+    S.sel[i] = [];
+    mf.querySelectorAll(".mf-pop input").forEach(function (x) { x.checked = false; });
+    mfLabel(mf, i);
+    filter();
   }
 
   function grid() {
@@ -980,10 +1023,10 @@ setInterval(function () {
 
   function fmtDate(v) { var m = /^(\d{4})-(\d\d)-(\d\d)$/.exec(v); return m ? m[3] + "/" + m[2] + "/" + m[1] : v; }
 
-  // Completa los desplegables de filtro: las fechas salen de los datos (se actualizan solas), el resto de las opciones de la columna.
+  // Completa las casillas de cada filtro: las fechas salen de los datos (se actualizan solas), el resto de las opciones de la columna.
   function fillFilters() {
-    document.querySelectorAll("#tools select.ff").forEach(function (sel) {
-      var i = +sel.getAttribute("data-i"), c = S.data.cols[i], keep = sel.value, opts;
+    document.querySelectorAll("#tools .mf").forEach(function (mf) {
+      var i = +mf.getAttribute("data-i"), c = S.data.cols[i], opts;
       if (c.type === "date") {
         var seen = {};
         S.data.rows.forEach(function (r) { if (r.v[i]) seen[r.v[i]] = 1; });
@@ -991,9 +1034,19 @@ setInterval(function () {
       } else {
         opts = (c.options || []).map(function (o) { return [o, (c.optionLabels && c.optionLabels[o]) || o]; });
       }
-      sel.replaceChildren.apply(sel, [el("option", { value: "" }, "Todos: " + c.h.toLowerCase())]
-        .concat(opts.map(function (o) { return el("option", { value: o[0] }, o[1]); })));
-      sel.value = opts.some(function (o) { return o[0] === keep; }) ? keep : "";
+      // Se descartan selecciones que ya no existen (por ejemplo, una fecha que ya no tiene filas)
+      S.sel[i] = (S.sel[i] || []).filter(function (v) { return opts.some(function (o) { return o[0] === v; }); });
+      var pop = mf.querySelector(".mf-pop");
+      if (pop.hidden) { // si el menú está abierto no se toca, para no cambiarlo mientras se usa
+        var sel = S.sel[i];
+        pop.replaceChildren.apply(pop, opts.map(function (o) {
+          var cb = el("input", { type: "checkbox", value: o[0] });
+          cb.checked = sel.indexOf(o[0]) >= 0;
+          cb.addEventListener("change", function () { onMFChange(mf, i); });
+          return el("label", { class: "mf-opt" }, cb, o[1]);
+        }).concat([el("button", { type: "button", class: "mf-clear", onclick: function () { clearMF(mf, i); } }, "Mostrar todos")]));
+      }
+      mfLabel(mf, i);
     });
   }
 
@@ -1035,8 +1088,26 @@ setInterval(function () {
     var res = await sb.from(S.tab).insert(TABLES[S.tab].defaults()).select("id").single();
     if (res.error) return status("No se pudo crear: " + errMsg(res.error), true);
     await load(false);
+    revealRow(res.data.id);
     var tr = document.querySelector('#grid tr[data-id="' + res.data.id + '"]');
     var f = tr && tr.querySelector("input,textarea,select"); if (f) f.focus();
+  }
+
+  // Si algún filtro (o la búsqueda) oculta la fila recién creada, se quita ese filtro para que no desaparezca.
+  function revealRow(id) {
+    var r = S.data.rows.find(function (x) { return String(x.id) === String(id); });
+    if (!r) return;
+    var cleared = [];
+    Object.keys(S.sel).forEach(function (i) {
+      if (S.sel[i].length && S.sel[i].indexOf(r.v[i]) < 0) { S.sel[i] = []; cleared.push(S.data.cols[i].h); }
+    });
+    var q = $("q");
+    if (q && q.value && r.v.join(" ").toLowerCase().indexOf(q.value.toLowerCase()) < 0) { q.value = ""; cleared.push("búsqueda"); }
+    if (!cleared.length) return;
+    fillFilters();
+    filter();
+    status("Se quitó el filtro de " + cleared.join(", ") + " para mostrar la fila nueva.");
+    setTimeout(function () { if ($("status") && /para mostrar la fila nueva/.test($("status").textContent)) status(""); }, 4000);
   }
 
   async function del(r) {
@@ -1048,14 +1119,18 @@ setInterval(function () {
 
   function filter() {
     var q = ($("q") && $("q").value || "").toLowerCase();
-    var active = [];
-    document.querySelectorAll("#tools select.ff").forEach(function (s) { if (s.value) active.push({ i: +s.getAttribute("data-i"), v: s.value }); });
+    // Cada filtro es una lista de valores permitidos: la fila se muestra si su valor está en la lista (lista vacía = sin filtro)
+    var active = Object.keys(S.sel).filter(function (i) { return S.sel[i].length; }).map(function (i) { return { i: +i, v: S.sel[i] }; });
     var byId = {}; S.data.rows.forEach(function (r) { byId[r.id] = r; });
+    var shown = 0;
     document.querySelectorAll("#grid tbody tr").forEach(function (tr) {
       var r = byId[tr.getAttribute("data-id")]; if (!r) return;
-      var ok = (!q || r.v.join(" ").toLowerCase().indexOf(q) >= 0) && active.every(function (f) { return r.v[f.i] === f.v; });
+      var ok = (!q || r.v.join(" ").toLowerCase().indexOf(q) >= 0) && active.every(function (f) { return f.v.indexOf(r.v[f.i]) >= 0; });
       tr.style.display = ok ? "" : "none";
+      if (ok) shown++;
     });
+    var cnt = $("count");
+    if (cnt) cnt.textContent = "Mostrando " + shown + " de " + S.data.rows.length;
   }
 
   // ---------- Exportar a Excel (todas las pestañas) ----------

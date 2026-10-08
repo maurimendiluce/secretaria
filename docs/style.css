@@ -196,3 +196,14 @@ button.ghost{background:transparent;color:var(--fg);border:1px solid var(--line)
 .draft-state-row{display:flex;align-items:center;gap:10px}
 .draft-state-row label{margin-top:0}
 .draft-state-row select{padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--fg)}
+
+/* Filtros de selección múltiple */
+.mf{position:relative}
+.mf-btn{padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--fg)}
+.mf-btn.on{border-color:var(--acc)}
+.mf-pop{position:absolute;z-index:20;top:100%;left:0;margin-top:4px;min-width:210px;max-height:320px;overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px;box-shadow:0 6px 20px rgba(0,0,0,.15)}
+.mf-pop[hidden]{display:none}
+.mf-opt{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:6px;cursor:pointer;white-space:nowrap}
+.mf-opt:hover{background:var(--bg)}
+.mf-clear{display:block;width:100%;text-align:left;background:transparent;color:var(--acc);border:0;border-top:1px solid var(--line);border-radius:0;margin-top:4px;padding:8px}
+.count{color:var(--mut);font-size:12px;align-self:center;margin-left:auto}
