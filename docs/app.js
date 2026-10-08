@@ -16,12 +16,14 @@
       C("fecha", "Fecha", "date"), C("expediente", "N° Expediente"), C("dpto", "Dpto"), C("contacto", "Contacto"),
       C("observaciones", "Observaciones"), C("responsable", "Responsable", "select", RESPONSABLES),
       C("estado", "Estado", "select", ESTADOS), C("notas", "Notas / seguimiento")],
+      filters: ["responsable", "estado"],
       defaults: function () { return { fecha: today(), estado: "Pendiente" }; } },
     comision: { label: "Comisión", cols: [
       C("fecha", "Comisión", "date"),
       C("tipo", "Tipo", "select", ["para", "en"], { para: "Para comisión", en: "En comisión" }),
       C("categoria", "Categoría"), C("expediente", "Expte. / Proyecto"), C("observacion", "Observación"),
       C("estado", "Estado (comisión)")],
+      filters: ["fecha", "tipo"], // columnas con desplegable de filtro
       defaults: function () { return { fecha: today(), tipo: "para" }; } },
     contactos_dptos: { label: "Departamentos", cols: [
       C("dpto", "Dpto"), C("director_titular", "Director titular"), C("email_titular", "Email"),
@@ -169,11 +171,9 @@
 
   function tools() {
     var items = [el("input", { type: "search", id: "q", placeholder: "Buscar…", oninput: filter })];
-    ["estado", "responsable"].forEach(function (h) {
-      var i = colIdx(h);
-      if (i < 0 || !S.data.cols[i].options) return;
-      items.push(el("select", { id: "f-" + h, onchange: filter },
-        [el("option", { value: "" }, "Todos: " + h)].concat(S.data.cols[i].options.map(function (o) { return el("option", { value: o }, o); }))));
+    (TABLES[S.tab].filters || []).forEach(function (k) {
+      var i = S.data.cols.findIndex(function (c) { return c.i === k; });
+      if (i >= 0) items.push(el("select", { class: "ff", "data-i": i, onchange: filter }));
     });
     items.push(el("button", { onclick: add }, "+ Nueva fila"));
     items.push(el("button", { class: "ghost", onclick: function () { load(false); } }, "Recargar"));
@@ -193,7 +193,27 @@
     head.append(el("th"));
     $("grid").replaceChildren(el("table", {}, el("thead", {}, head), tb));
     document.querySelectorAll("#grid textarea").forEach(grow);
+    fillFilters();
     filter();
+  }
+
+  function fmtDate(v) { var m = /^(\d{4})-(\d\d)-(\d\d)$/.exec(v); return m ? m[3] + "/" + m[2] + "/" + m[1] : v; }
+
+  // Completa los desplegables de filtro: las fechas salen de los datos (se actualizan solas), el resto de las opciones de la columna.
+  function fillFilters() {
+    document.querySelectorAll("#tools select.ff").forEach(function (sel) {
+      var i = +sel.getAttribute("data-i"), c = S.data.cols[i], keep = sel.value, opts;
+      if (c.type === "date") {
+        var seen = {};
+        S.data.rows.forEach(function (r) { if (r.v[i]) seen[r.v[i]] = 1; });
+        opts = Object.keys(seen).sort().reverse().map(function (v) { return [v, fmtDate(v)]; });
+      } else {
+        opts = (c.options || []).map(function (o) { return [o, (c.optionLabels && c.optionLabels[o]) || o]; });
+      }
+      sel.replaceChildren.apply(sel, [el("option", { value: "" }, "Todos: " + c.h.toLowerCase())]
+        .concat(opts.map(function (o) { return el("option", { value: o[0] }, o[1]); })));
+      sel.value = opts.some(function (o) { return o[0] === keep; }) ? keep : "";
+    });
   }
 
   function rowEl(r) {
@@ -247,12 +267,12 @@
 
   function filter() {
     var q = ($("q") && $("q").value || "").toLowerCase();
-    var fe = $("f-estado") ? $("f-estado").value : "", fr = $("f-responsable") ? $("f-responsable").value : "";
-    var ei = colIdx("estado"), ri = colIdx("responsable");
+    var active = [];
+    document.querySelectorAll("#tools select.ff").forEach(function (s) { if (s.value) active.push({ i: +s.getAttribute("data-i"), v: s.value }); });
     var byId = {}; S.data.rows.forEach(function (r) { byId[r.id] = r; });
     document.querySelectorAll("#grid tbody tr").forEach(function (tr) {
       var r = byId[tr.getAttribute("data-id")]; if (!r) return;
-      var ok = (!q || r.v.join(" ").toLowerCase().indexOf(q) >= 0) && (!fe || r.v[ei] === fe) && (!fr || r.v[ri] === fr);
+      var ok = (!q || r.v.join(" ").toLowerCase().indexOf(q) >= 0) && active.every(function (f) { return r.v[f.i] === f.v; });
       tr.style.display = ok ? "" : "none";
     });
   }
