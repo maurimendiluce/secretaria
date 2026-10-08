@@ -142,3 +142,48 @@ button.ghost{background:transparent;color:var(--fg);border:1px solid var(--line)
   text-align:center;
   margin:auto;
 }
+
+
+.note-header{
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+
+.note-header input{
+  flex:1;
+  font-size:18px;
+  font-weight:600;
+  padding:8px 10px;
+  border:1px solid var(--line);
+  border-radius:6px;
+  background:var(--card);
+  color:var(--fg);
+}
+
+#note-body{
+  width:100%;
+  min-height:400px;
+  margin-top:12px;
+  padding:10px;
+  border:1px solid var(--line);
+  border-radius:6px;
+  background:var(--card);
+  color:var(--fg);
+  resize:vertical;
+  line-height:1.5;
+  font-family:inherit;
+}
+
+.note-buttons{
+  display:flex;
+  gap:8px;
+  margin-top:12px;
+  flex-wrap:wrap;
+}
+
+.draft-save-info{
+  color:var(--mut);
+  font-size:12px;
+  white-space:nowrap;
+}

@@ -105,7 +105,8 @@
   return el("button", { class: "tab", "data-n": n, onclick: function () { open(n); } }, TABLES[n].label);
 }).concat([
   el("button", { class: "tab", "data-n": "formulario", onclick: function () { openForm(); } }, "Formulario"),
-  el("button", { class: "tab", "data-n": "borradores", onclick: function () { openBorradores(); } }, "Borradores")
+  el("button", { class: "tab", "data-n": "borradores", onclick: function () { openBorradores(); } }, "Borradores"),
+  el("button", { class: "tab", "data-n": "notas", onclick: function () { openNotas(); } }, "Notas / Proyectos")
 ]));
     return open(S.tab);
   }
@@ -460,6 +461,338 @@ function renderEmptyDraft() {
     } catch (e) { status("Error: " + errMsg(e), true); }
   }
 
+// =========================
+// Notas / Proyectos
+// =========================
+
+var notaSaveTimer = null;
+
+async function openNotas() {
+  S.tab = "notas";
+
+  document.querySelectorAll(".tab").forEach(function (b) {
+    b.classList.toggle("on", b.dataset.n === "notas");
+  });
+
+  $("tools").replaceChildren();
+  $("grid").replaceChildren();
+
+  return loadNotas();
+}
+
+async function loadNotas() {
+  status("Cargando notas...");
+
+  var res = await sb
+    .from("notas")
+    .select("*")
+    .order("updated_at", { ascending: false });
+
+  if (res.error) {
+    status(errMsg(res.error), true);
+    return;
+  }
+
+  renderNotas(res.data || []);
+  status("");
+}
+
+function renderNotas(rows) {
+  var selected = rows.length ? rows[0] : null;
+
+  var layout = el("div", { class: "draft-layout" });
+
+  var sidebar = el("aside", { class: "draft-sidebar" });
+
+  sidebar.append(
+    el("div", { class: "draft-sidebar-head" },
+      el("strong", {}, "Notas / Proyectos"),
+      el("button", {
+        onclick: function () {
+          nuevaNota();
+        }
+      }, "+ Nueva")
+    )
+  );
+
+  var list = el("div", { class: "draft-list" });
+
+  rows.forEach(function (r) {
+    var item = el("button", {
+      class: "draft-item",
+      onclick: function () {
+        renderNotaEditor(rows, r.id);
+      }
+    },
+      el("strong", {}, r.titulo || "(Sin título)"),
+      el("span", {},
+        r.updated_at
+          ? new Date(r.updated_at).toLocaleString("es-AR")
+          : ""
+      )
+    );
+
+    list.append(item);
+  });
+
+  sidebar.append(list);
+
+  var editor = el("section", {
+    class: "draft-editor",
+    id: "nota-editor"
+  });
+
+  layout.append(sidebar, editor);
+
+  $("grid").replaceChildren(layout);
+
+  if (selected) {
+    renderNotaEditor(rows, selected.id);
+  } else {
+    editor.replaceChildren(
+      el("div", { class: "draft-empty" },
+        "No hay notas todavía.",
+        el("button", {
+          onclick: function () {
+            nuevaNota();
+          }
+        }, "Crear primera nota")
+      )
+    );
+  }
+}
+
+function renderNotaEditor(rows, id) {
+  var r = rows.find(function (x) {
+    return String(x.id) === String(id);
+  });
+
+  if (!r) return;
+
+  var editor = $("nota-editor");
+
+  if (!editor) return;
+
+  if (notaSaveTimer) {
+    clearTimeout(notaSaveTimer);
+    notaSaveTimer = null;
+  }
+
+  var title = el("input", {
+    id: "note-title",
+    type: "text",
+    placeholder: "Título de la nota o proyecto",
+    value: r.titulo || ""
+  });
+
+  var body = el("textarea", {
+    id: "note-body",
+    placeholder: "Escribí acá la nota, ideas, información del proyecto, etc."
+  });
+
+  body.value = r.contenido || "";
+
+  var saveInfo = el("span", {
+    class: "draft-save-info",
+    id: "note-save-info"
+  }, "Guardado");
+
+  var buttons = el("div", {
+    class: "note-buttons"
+  },
+    el("button", {
+      class: "ghost",
+      onclick: function () {
+        descargarNota(r, "md");
+      }
+    }, "Descargar .md"),
+
+    el("button", {
+      class: "ghost",
+      onclick: function () {
+        descargarNota(r, "txt");
+      }
+    }, "Descargar .txt"),
+
+    el("button", {
+      class: "ghost",
+      onclick: function () {
+        eliminarNota(r);
+      }
+    }, "Eliminar")
+  );
+
+  editor.replaceChildren(
+    el("div", { class: "note-header" },
+      title,
+      saveInfo
+    ),
+    body,
+    buttons
+  );
+
+  title.addEventListener("input", function () {
+    programarGuardadoNota(r);
+  });
+
+  body.addEventListener("input", function () {
+    grow(body);
+    programarGuardadoNota(r);
+  });
+
+  grow(body);
+}
+
+function programarGuardadoNota(r) {
+  var info = $("note-save-info");
+
+  if (info) {
+    info.textContent = "Guardando...";
+  }
+
+  if (notaSaveTimer) {
+    clearTimeout(notaSaveTimer);
+  }
+
+  notaSaveTimer = setTimeout(function () {
+    guardarNota(r);
+  }, 700);
+}
+
+async function guardarNota(r) {
+  var title = $("note-title");
+  var body = $("note-body");
+
+  if (!title || !body) return;
+
+  var res = await sb
+    .from("notas")
+    .update({
+      titulo: title.value,
+      contenido: body.value
+    })
+    .eq("id", r.id);
+
+  if (res.error) {
+    status(errMsg(res.error), true);
+
+    var infoError = $("note-save-info");
+    if (infoError) infoError.textContent = "Error al guardar";
+
+    return;
+  }
+
+  r.titulo = title.value;
+  r.contenido = body.value;
+
+  var info = $("note-save-info");
+  if (info) {
+    info.textContent = "Guardado";
+  }
+
+  status("Nota guardada");
+}
+
+async function nuevaNota() {
+  var res = await sb
+    .from("notas")
+    .insert({
+      titulo: "Nueva nota",
+      contenido: ""
+    })
+    .select()
+    .single();
+
+  if (res.error) {
+    status(errMsg(res.error), true);
+    return;
+  }
+
+  await loadNotas();
+
+  setTimeout(function () {
+    var title = $("note-title");
+    if (title) {
+      title.focus();
+      title.select();
+    }
+  }, 50);
+}
+
+async function eliminarNota(r) {
+  if (!confirm("¿Eliminar esta nota?")) {
+    return;
+  }
+
+  var res = await sb
+    .from("notas")
+    .delete()
+    .eq("id", r.id);
+
+  if (res.error) {
+    status(errMsg(res.error), true);
+    return;
+  }
+
+  await loadNotas();
+  status("Nota eliminada");
+}
+
+function safeFileName(name) {
+  return (name || "nota")
+    .replace(/[\\/:*?"<>|]/g, "_")
+    .trim() || "nota";
+}
+
+function descargarArchivo(filename, content, mime) {
+  var blob = new Blob(
+    [content],
+    { type: mime + ";charset=utf-8" }
+  );
+
+  var url = URL.createObjectURL(blob);
+
+  var a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+
+  setTimeout(function () {
+    URL.revokeObjectURL(url);
+  }, 1000);
+}
+
+function descargarNota(r, formato) {
+  var title = $("note-title")
+    ? $("note-title").value
+    : (r.titulo || "nota");
+
+  var content = $("note-body")
+    ? $("note-body").value
+    : (r.contenido || "");
+
+  var base = safeFileName(title);
+
+  if (formato === "md") {
+    descargarArchivo(
+      base + ".md",
+      "# " + title + "\n\n" + content,
+      "text/markdown"
+    );
+  }
+
+  if (formato === "txt") {
+    descargarArchivo(
+      base + ".txt",
+      title + "\n\n" + content,
+      "text/plain"
+    );
+  }
+}
+
   // ---------- Cambios en vivo ----------
   function unsubscribe() { if (S.channel) { sb.removeChannel(S.channel); S.channel = null; } }
   function subscribe(name) {
@@ -488,8 +821,16 @@ function renderEmptyDraft() {
   
   //setInterval(function () { if (!document.hidden && S.data) refresh(); }, 60000); // respaldo por si se corta la conexión en vivo
 
-  setInterval(function () { 
-  if (!document.hidden && S.data && S.tab !== "formulario") refresh(); 
+setInterval(function () {
+  if (
+    !document.hidden &&
+    S.data &&
+    S.tab !== "formulario" &&
+    S.tab !== "borradores" &&
+    S.tab !== "notas"
+  ) {
+    refresh();
+  }
 }, 60000);
   // ---------- Tabla ----------
   function colIdx(h) { return S.data.cols.findIndex(function (c) { return c.h.toLowerCase() === h; }); }
