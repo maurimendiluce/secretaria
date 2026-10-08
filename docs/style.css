@@ -207,3 +207,7 @@ button.ghost{background:transparent;color:var(--fg);border:1px solid var(--line)
 .mf-opt:hover{background:var(--bg)}
 .mf-clear{display:block;width:100%;text-align:left;background:transparent;color:var(--acc);border:0;border-top:1px solid var(--line);border-radius:0;margin-top:4px;padding:8px}
 .count{color:var(--mut);font-size:12px;align-self:center;margin-left:auto}
+
+/* Abrir borrador en el correo */
+.draft-actions{flex-wrap:wrap}
+.draft-ask{display:flex;align-items:center;flex-wrap:wrap;gap:10px;background:var(--prog);border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin-bottom:8px}
