@@ -3,6 +3,7 @@
 
   var ESTADOS = ["Pendiente", "En proceso", "Terminado"];
   var RESPONSABLES = ["Naty", "Mauri", "Naty / Mauri"];
+  
   var FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSf_FP644YtLRl1_abTDKr4__p3CdIBGOSjZo6GvkKius5I1_g/viewform?embedded=true";
 
   function today() {
