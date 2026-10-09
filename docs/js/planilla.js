@@ -114,7 +114,27 @@ function colIdx(h) {
 }
 
 function tools() {
-  var items = [el("input", { type: "search", id: "q", placeholder: "Buscar…", oninput: filter })];
+  var items = [];
+  if (TABLES[S.tab].counters) {
+    items.push(
+      el(
+        "div",
+        { class: "counters", id: "counters" },
+        TABLES[S.tab].counters.map(function (c, n) {
+          return el("button", {
+            type: "button",
+            class: "counter st-" + c.value.replace(/\s/g, ""),
+            "data-n": n,
+            title: "Mostrar solo: " + c.value,
+            onclick: function () {
+              filtrarPorContador(c);
+            },
+          });
+        }),
+      ),
+    );
+  }
+  items.push(el("input", { type: "search", id: "q", placeholder: "Buscar…", oninput: filter }));
   // Filtros de selección múltiple. Al entrar a la pestaña arrancan con los valores de filterDefaults (si los hay).
   var defs = TABLES[S.tab].filterDefaults || {};
   S.sel = {};
@@ -217,6 +237,34 @@ function clearMF(mf, i) {
   filter();
 }
 
+// ---------- Contadores (Pendientes / En proceso) ----------
+// Cuentan todas las filas de la pestaña, sin importar filtros ni búsqueda.
+function contadores() {
+  var box = $("counters");
+  if (!box || !S.data) return;
+  TABLES[S.tab].counters.forEach(function (c, n) {
+    var i = S.data.cols.findIndex(function (x) {
+      return x.i === c.col;
+    });
+    var total = S.data.rows.filter(function (r) {
+      return r.v[i] === c.value;
+    }).length;
+    var b = box.querySelector('[data-n="' + n + '"]');
+    if (b) b.replaceChildren(c.label + " ", el("b", {}, String(total)));
+  });
+}
+
+// Clic en un contador: el filtro de esa columna queda solo con ese valor.
+function filtrarPorContador(c) {
+  var i = S.data.cols.findIndex(function (x) {
+    return x.i === c.col;
+  });
+  if (i < 0) return;
+  S.sel[i] = [c.value];
+  fillFilters();
+  filter();
+}
+
 function grid() {
   var d = S.data,
     rows = d.rows.slice();
@@ -241,6 +289,7 @@ function grid() {
   document.querySelectorAll("#grid textarea").forEach(grow);
   fillFilters();
   filter();
+  contadores();
 }
 
 // Completa las casillas de cada filtro: las fechas salen de los datos (se actualizan solas), el resto de las opciones de la columna.
@@ -360,6 +409,7 @@ async function save(r, k, c, inp, tr) {
   var res = await sb.from(S.tab).update(patch).eq("id", r.id).select("updated_by,updated_at").single();
   if (res.error) return status("No se pudo guardar: " + errMsg(res.error), true);
   r.v[k] = inp.value;
+  contadores();
   r.by = byText(res.data);
   tr.title = "Editado por " + r.by;
   if (c.h.toLowerCase() === "estado") tr.className = inp.value ? "st-" + inp.value.replace(/\s/g, "") : "";

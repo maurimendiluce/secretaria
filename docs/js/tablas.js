@@ -33,6 +33,11 @@ export var TABLES = {
     filters: ["responsable", "estado"],
     // Al entrar a la pestaña se muestran solo estos valores (se pueden cambiar con el filtro). Si se quita esta línea, se muestra todo.
     filterDefaults: { estado: ["Pendiente", "En proceso"] },
+    // Contadores arriba de la tabla (cuentan todas las filas, aunque haya filtros). Al hacer clic filtran por ese valor.
+    counters: [
+      { col: "estado", value: "Pendiente", label: "Pendientes" },
+      { col: "estado", value: "En proceso", label: "En proceso" },
+    ],
     defaults: function () {
       return { fecha: today(), estado: "Pendiente" };
     },
