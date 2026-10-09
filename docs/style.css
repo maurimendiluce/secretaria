@@ -271,3 +271,8 @@ a.btn:hover{filter:brightness(1.1)}
 .counter.st-Pendiente{background:var(--pend)}
 .counter.st-Enproceso{background:var(--prog)}
 .counter:hover{filter:brightness(.95)}
+
+/* Comisión: color de fila según Tipo */
+tr.tipo-para{background:#e3eefc}
+tr.tipo-en{background:#efe6fb}
+@media (prefers-color-scheme:dark){tr.tipo-para{background:#1f2f52}tr.tipo-en{background:#33264d}}

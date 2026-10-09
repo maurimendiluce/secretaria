@@ -359,6 +359,8 @@ function rowEl(r) {
     tr = el("tr", { "data-id": r.id, title: r.by ? "Editado por " + r.by : "" });
   var ei = colIdx("estado");
   if (ei >= 0 && r.v[ei]) tr.className = "st-" + r.v[ei].replace(/\s/g, "");
+  var ti = S.tab === "comision" ? colIdx("tipo") : -1;
+  if (ti >= 0 && r.v[ti]) tr.className = "tipo-" + r.v[ti];
   d.cols.forEach(function (c, k) {
     var inp;
     if (c.type === "select") {
@@ -413,6 +415,7 @@ async function save(r, k, c, inp, tr) {
   r.by = byText(res.data);
   tr.title = "Editado por " + r.by;
   if (c.h.toLowerCase() === "estado") tr.className = inp.value ? "st-" + inp.value.replace(/\s/g, "") : "";
+  if (S.tab === "comision" && c.h.toLowerCase() === "tipo") tr.className = inp.value ? "tipo-" + inp.value : "";
   status("Guardado ✓");
   setTimeout(function () {
     if ($("status") && $("status").textContent === "Guardado ✓") status("");
