@@ -6,6 +6,9 @@
   
   var FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSf_FP644YtLRl1_abTDKr4__p3CdIBGOSjZo6GvkKius5I1_g/viewform?embedded=true";
 
+  // Carpeta de proyectos en la nube de Exactas (botón en la solapa Notas / Proyectos)
+  var NUBE_URL = "https://nube.exactas.uba.ar/index.php/f/26167782";
+
   function today() {
     var d = new Date(), p = function (n) { return String(n).padStart(2, "0"); };
     return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate());
@@ -73,6 +76,7 @@
   // ---------- Login ----------
   function showLogin(msg) {
     unsubscribe();
+    liveOff();
     S.data = null;
     root.replaceChildren(
       el("form", { class: "login", onsubmit: onLogin },
@@ -97,6 +101,9 @@
       el("header", { class: "bar" },
         el("h1", {}, "Gestión de Secretaría"),
         el("nav", { id: "tabs" }),
+        el("span", { class: "bk-info", id: "bk-info" }),
+        el("button", { class: "ghost", title: "Descarga todos los datos en un archivo", onclick: copiaSeguridad }, "Copia de seguridad"),
+        el("button", { class: "ghost", title: "Lo que se borró, para restaurarlo", onclick: abrirPapelera }, "Papelera"),
         el("span", { class: "who" }, S.user.email),
         el("button", { class: "ghost", onclick: function () { sb.auth.signOut(); } }, "Salir")
       ),
@@ -112,7 +119,10 @@
   el("button", { class: "tab", "data-n": "calendario", onclick: function () { openCalendario(); } }, "Calendario"),
   el("button", { class: "tab", "data-n": "notas", onclick: function () { openNotas(); } }, "Notas / Proyectos")
 ]));
-    return open(S.tab);
+    actualizarAvisoCopia();
+    var pr = open(S.tab);
+    pr.then(avisoCopiaInicial);
+    return pr;
   }
 
   async function fetchTable(name) {
@@ -130,12 +140,14 @@
 
   async function open(name) {
     S.tab = name;
+    liveOff();
     document.querySelectorAll(".tab").forEach(function (b) { b.classList.toggle("on", b.getAttribute("data-n") === name); });
     return load(true);
   }
 
   function openForm() {
   S.tab = "formulario";
+  leaveGrid();
 
   document.querySelectorAll(".tab").forEach(function (b) {
     b.classList.toggle("on", b.getAttribute("data-n") === "formulario");
@@ -157,16 +169,39 @@
   status("");
 }
 
+// ---------- Cambios en vivo para Borradores y Notas ----------
+// Un solo canal a la vez: al cambiar de pestaña se cierra. Los cambios de la otra persona llegan con ~½ segundo de demora.
+var live = { ch: null, timer: null };
+function liveOff() {
+  clearTimeout(live.timer);
+  if (live.ch) { sb.removeChannel(live.ch); live.ch = null; }
+}
+function liveOn(tab, table, fn) {
+  liveOff();
+  live.ch = sb.channel("rt-live-" + table)
+    .on("postgres_changes", { event: "*", schema: "public", table: table }, function () {
+      if (S.tab !== tab) return;
+      clearTimeout(live.timer);
+      live.timer = setTimeout(fn, 400);
+    }).subscribe();
+}
+// Deja la pestaña sin refresco de tabla (Borradores, Notas, Calendario, Formulario no usan la grilla).
+function leaveGrid() { unsubscribe(); liveOff(); S.data = null; }
+
+var draftRows = [];   // lo que se está mostrando
+var draftSel = null;  // id del borrador abierto
+var draftSaving = 0;  // guardados en curso
+var draftSyncTimer = null;
+
 function openBorradores() {
   S.tab = "borradores";
 
   document.querySelectorAll(".tab").forEach(function (b) {
-    b.classList.toggle(
-      "on",
-      b.getAttribute("data-n") === "borradores"
-    );
+    b.classList.toggle("on", b.getAttribute("data-n") === "borradores");
   });
 
+  leaveGrid();
+  draftSel = null;
   $("tools").replaceChildren();
   $("grid").replaceChildren();
 
@@ -181,44 +216,102 @@ async function loadBorradores() {
     .select("*")
     .order("updated_at", { ascending: false });
 
+  if (S.tab !== "borradores") return;
+
   if (res.error) {
     return status("Error: " + errMsg(res.error), true);
   }
 
   renderBorradores(res.data);
+  liveOn("borradores", "borradores", refrescarBorradores);
   status("");
 }
 
-function renderBorradores(rows) {
-  var visible = rows.filter(function (r) {
-    return !draftFilter || draftState(r) === draftFilter;
+// Lo que escribís vos tiene prioridad: si hay algo sin guardar se espera y se reintenta.
+async function refrescarBorradores() {
+  if (S.tab !== "borradores" || !$("draft-list")) return;
+  clearTimeout(draftSyncTimer);
+  if (pendingDraft || draftSaving > 0) { draftSyncTimer = setTimeout(refrescarBorradores, 1500); return; }
+
+  var res = await sb.from("borradores").select("*").order("updated_at", { ascending: false });
+  if (res.error || S.tab !== "borradores" || !$("draft-list")) return;
+  if (pendingDraft || draftSaving > 0) { draftSyncTimer = setTimeout(refrescarBorradores, 1500); return; }
+
+  var rows = res.data;
+  var cur = draftRows.find(function (x) { return x.id === draftSel; });
+  var i = rows.findIndex(function (x) { return x.id === draftSel; });
+  var perdido = false;
+
+  if (cur && i >= 0) {
+    var nuevo = rows[i];
+    // Se conserva el mismo objeto (lo usan los botones del editor). Solo se pisa si lo de la base es más nuevo y distinto.
+    if (!mismoBorrador(cur, nuevo) && new Date(nuevo.updated_at) > new Date(cur.updated_at)) {
+      Object.assign(cur, nuevo);
+      pintarCamposBorrador(cur);
+    }
+    rows[i] = cur;
+  } else if (cur) {
+    perdido = true; // lo borró la otra persona
+  }
+
+  draftRows = rows;
+  pintarListaBorradores();
+
+  if (perdido) {
+    draftSel = null;
+    var vis = borradoresVisibles();
+    if (vis.length) renderBorradorEditor(draftRows, vis[0].id); else renderEmptyDraft();
+    status("Ese borrador lo eliminó otra persona.", true);
+  } else if (!cur) {
+    var v2 = borradoresVisibles();
+    if (v2.length) renderBorradorEditor(draftRows, v2[0].id);
+  }
+}
+
+function mismoBorrador(a, b) {
+  return ["destinatario", "cc", "asunto", "cuerpo", "estado"].every(function (k) { return (a[k] || "") === (b[k] || ""); });
+}
+
+// Pone en pantalla los datos de r sin mover el cursor del campo que esté activo.
+function pintarCamposBorrador(r) {
+  [["draft-to", r.destinatario], ["draft-cc", r.cc], ["draft-subject", r.asunto], ["draft-body", r.cuerpo]].forEach(function (p) {
+    var input = $(p[0]), v = p[1] || "";
+    if (!input || input.value === v) return;
+    var a = document.activeElement === input, s = input.selectionStart, e = input.selectionEnd;
+    input.value = v;
+    if (a) { try { input.setSelectionRange(Math.min(s, v.length), Math.min(e, v.length)); } catch (x) { /* ignorar */ } }
   });
+  if ($("draft-state")) $("draft-state").value = draftState(r);
+  actualizarBotonPlantilla(r);
+  if ($("draft-info")) $("draft-info").textContent = r.updated_by ? "Última modificación: " + r.updated_by : "";
+}
 
-  var selected = visible.length ? visible[0] : null;
+function borradoresVisibles() {
+  return draftRows.filter(function (r) { return !draftFilter || draftState(r) === draftFilter; });
+}
 
-  var list = el("div", { class: "draft-list" });
-
-  visible.forEach(function (r) {
-    list.append(
-      el(
-        "button",
-        {
-          class: "draft-item",
-          "data-id": r.id,
-          onclick: function () {
-            switchBorrador(rows, r.id);
-          }
-        },
-        el(
-          "div",
-          { class: "draft-row" },
-          el("strong", {}, r.asunto || "(Sin asunto)"),
-          el("small", { class: "st-badge st-" + draftState(r) }, draftState(r))
-        ),
-        el("span", {}, r.destinatario || "")
-      )
+function pintarListaBorradores() {
+  var list = $("draft-list");
+  if (!list) return;
+  list.replaceChildren.apply(list, borradoresVisibles().map(function (r) {
+    return el(
+      "button",
+      {
+        class: "draft-item" + (r.id === draftSel ? " on" : ""),
+        "data-id": r.id,
+        onclick: function () { switchBorrador(r.id); }
+      },
+      el("div", { class: "draft-row" },
+        el("strong", {}, r.asunto || "(Sin asunto)"),
+        el("small", { class: "st-badge st-" + draftState(r) }, draftState(r))
+      ),
+      el("span", {}, r.destinatario || "")
     );
-  });
+  }));
+}
+
+function renderBorradores(rows) {
+  draftRows = rows;
 
   var layout = el(
     "div",
@@ -228,14 +321,7 @@ function renderBorradores(rows) {
       "aside",
       { class: "draft-sidebar" },
 
-      el(
-        "button",
-        {
-          class: "new-draft",
-          onclick: newBorrador
-        },
-        "+ Nuevo borrador"
-      ),
+      el("button", { class: "new-draft", onclick: newBorrador }, "+ Nuevo borrador"),
 
       el(
         "select",
@@ -244,7 +330,7 @@ function renderBorradores(rows) {
           title: "Filtrar por estado",
           onchange: function () {
             draftFilter = this.value;
-            renderBorradores(rows);
+            renderBorradores(draftRows);
           }
         },
         el("option", { value: "" }, "Todos los estados"),
@@ -255,22 +341,21 @@ function renderBorradores(rows) {
         })
       ),
 
-      list
+      el("div", { class: "draft-list", id: "draft-list" })
     ),
 
-    el(
-      "section",
-      {
-        id: "draft-editor",
-        class: "draft-editor"
-      }
-    )
+    el("section", { id: "draft-editor", class: "draft-editor" })
   );
 
   $("grid").replaceChildren(layout);
 
+  var visible = borradoresVisibles();
+  var selected = visible.find(function (r) { return r.id === draftSel; }) || visible[0] || null;
+  draftSel = selected ? selected.id : null;
+  pintarListaBorradores();
+
   if (selected) {
-    renderBorradorEditor(rows, selected.id);
+    renderBorradorEditor(draftRows, selected.id);
   } else {
     renderEmptyDraft();
   }
@@ -282,6 +367,9 @@ function renderBorradorEditor(rows, id) {
   });
 
   if (!r) return;
+
+  draftSel = r.id;
+  pintarListaBorradores();
 
   $("draft-editor").replaceChildren(
 
@@ -350,6 +438,8 @@ function renderBorradorEditor(rows, id) {
           : ""
       ),
 
+      el("button", { id: "draft-use-tpl", title: "Crea un borrador nuevo con este texto; la plantilla queda como está", onclick: function () { usarPlantilla(r); } }, "Usar plantilla"),
+
       el("button", { class: "ghost", title: "Copia solo el texto del mensaje", onclick: copiarMensaje }, "Copiar mensaje"),
 
       el("button", { class: "ghost", title: "Abre un correo nuevo en tu programa de correo (Outlook, Mail, etc.)", onclick: function () { abrirEnProgramaCorreo(r); } }, "Programa de correo"),
@@ -371,6 +461,7 @@ function renderBorradorEditor(rows, id) {
 
   $("draft-body").value = r.cuerpo || "";
   $("draft-state").value = draftState(r);
+  actualizarBotonPlantilla(r);
 
   activarAutoGuardado(r);
 }
@@ -420,12 +511,18 @@ function activarAutoGuardado(r) {
 
 async function saveBorrador(r, patch) {
 
-  var res = await sb
-    .from("borradores")
-    .update(patch)
-    .eq("id", r.id)
-    .select("updated_at, updated_by")
-    .single();
+  draftSaving++;
+  var res;
+  try {
+    res = await sb
+      .from("borradores")
+      .update(patch)
+      .eq("id", r.id)
+      .select("updated_at, updated_by")
+      .single();
+  } finally {
+    draftSaving--;
+  }
 
   if (res.error) {
     return status(
@@ -475,6 +572,7 @@ async function newBorrador() {
     );
   }
 
+  draftSel = res.data.id;
   await loadBorradores();
 
   setTimeout(function () {
@@ -488,7 +586,7 @@ async function newBorrador() {
 
 async function deleteBorrador(r) {
 
-  if (!confirm("¿Eliminar este borrador?")) {
+  if (!confirm("¿Eliminar este borrador? Va a la Papelera y se puede restaurar desde ahí.")) {
     return;
   }
 
@@ -496,10 +594,7 @@ async function deleteBorrador(r) {
   draftSaveTimer = null;
   pendingDraft = null;
 
-  var res = await sb
-    .from("borradores")
-    .delete()
-    .eq("id", r.id);
+  var res = await borrarFila("borradores", r.id);
 
   if (res.error) {
     return status(
@@ -508,21 +603,50 @@ async function deleteBorrador(r) {
     );
   }
 
+  draftSel = null;
   await loadBorradores();
 }
 
 // ---------- Estado del borrador: Revisar / Enviado ----------
-var DRAFT_STATES = ["Revisar", "Enviado"];
-var draftFilter = ""; // "", "Revisar" o "Enviado"
+// "Plantilla" = mail precargado que se usa seguido. No se marca como enviado; con "Usar plantilla" se crea una copia para completar y mandar.
+var DRAFT_STATES = ["Revisar", "Enviado", "Plantilla"];
+var draftFilter = ""; // "" (todos) o uno de DRAFT_STATES
 
 // Los borradores viejos (estado vacío o "Borrador") se muestran como "Revisar".
 function draftState(r) {
-  return r.estado === "Enviado" ? "Enviado" : "Revisar";
+  return r.estado === "Enviado" || r.estado === "Plantilla" ? r.estado : "Revisar";
 }
 
-async function switchBorrador(rows, id) {
+async function switchBorrador(id) {
   await flushDraftSave();
-  renderBorradorEditor(rows, id);
+  renderBorradorEditor(draftRows, id);
+}
+
+function actualizarBotonPlantilla(r) {
+  var b = $("draft-use-tpl");
+  if (b) b.hidden = draftState(r) !== "Plantilla";
+}
+
+async function usarPlantilla(r) {
+  await flushDraftSave();
+  status("Creando copia…");
+
+  var res = await sb
+    .from("borradores")
+    .insert({ destinatario: r.destinatario, cc: r.cc, asunto: r.asunto, cuerpo: r.cuerpo, estado: "Revisar" })
+    .select("*")
+    .single();
+
+  if (res.error) {
+    return status("No se pudo crear la copia: " + errMsg(res.error), true);
+  }
+
+  draftFilter = ""; // para que la copia no quede oculta por un filtro
+  draftSel = res.data.id;
+  await loadBorradores();
+  status("Copia creada. La plantilla quedó como estaba.");
+  setTimeout(function () { if ($("status") && /Copia creada/.test($("status").textContent)) status(""); }, 3000);
+  if ($("draft-to")) $("draft-to").focus();
 }
 
 async function setBorradorEstado(r, value) {
@@ -530,12 +654,18 @@ async function setBorradorEstado(r, value) {
 
   status("Guardando…");
 
-  var res = await sb
-    .from("borradores")
-    .update({ estado: value })
-    .eq("id", r.id)
-    .select("updated_at, updated_by")
-    .single();
+  draftSaving++;
+  var res;
+  try {
+    res = await sb
+      .from("borradores")
+      .update({ estado: value })
+      .eq("id", r.id)
+      .select("updated_at, updated_by")
+      .single();
+  } finally {
+    draftSaving--;
+  }
 
   if (res.error) {
     if ($("draft-state")) $("draft-state").value = draftState(r);
@@ -545,6 +675,7 @@ async function setBorradorEstado(r, value) {
   r.estado = value;
   r.updated_at = res.data.updated_at;
   r.updated_by = res.data.updated_by;
+  actualizarBotonPlantilla(r);
 
   // Se actualiza la etiqueta de la lista sin recargarla
   var badge = document.querySelector('.draft-item[data-id="' + r.id + '"] .st-badge');
@@ -581,8 +712,7 @@ function openCalendario() {
   document.querySelectorAll(".tab").forEach(function (b) {
     b.classList.toggle("on", b.getAttribute("data-n") === "calendario");
   });
-  unsubscribe();
-  S.data = null; // en esta pestaña no hay tabla de la planilla: se frena el refresco automático
+  leaveGrid(); // en esta pestaña no hay tabla de la planilla: se frena el refresco automático
 
   var hoy = new Date();
   cal.y = hoy.getFullYear();
@@ -719,10 +849,10 @@ function renderCalendario() {
   );
 }
 
-function abrirModal(children) {
+function abrirModal(children, extra) {
   cerrarModal();
   var ov = el("div", { class: "modal-ov", id: "cal-modal", onclick: function (ev) { if (ev.target === ov) cerrarModal(); } },
-    el("div", { class: "modal" }, children));
+    el("div", { class: "modal" + (extra ? " " + extra : "") }, children));
   document.body.append(ov);
 }
 function cerrarModal() { var m = $("cal-modal"); if (m) m.remove(); }
@@ -784,8 +914,8 @@ function editarEvento(e, fecha) {
   }
 
   async function borrar() {
-    if (!confirm("¿Eliminar este evento?")) return;
-    var res = await sb.from("eventos").delete().eq("id", e.id);
+    if (!confirm("¿Eliminar este evento? Va a la Papelera y se puede restaurar desde ahí.")) return;
+    var res = await borrarFila("eventos", e.id);
     if (res.error) { err.textContent = "No se pudo eliminar: " + errMsg(res.error); return; }
     cerrarModal();
     loadCalendario();
@@ -917,7 +1047,7 @@ async function abrirEnProgramaCorreo(r) {
 function preguntarEnviado(r) {
   var old = $("draft-sent-ask");
   if (old) old.remove();
-  if (draftState(r) === "Enviado") return;
+  if (draftState(r) !== "Revisar") return; // una plantilla no se marca como enviada
 
   var bar = el(
     "div",
@@ -967,6 +1097,11 @@ function renderEmptyDraft() {
 // =========================
 
 var notaSaveTimer = null;
+var notaRows = [];
+var notaSel = null;
+var notaSaving = 0;
+var pendingNota = null; // { r, titulo, contenido }: lo último escrito que todavía no se guardó
+var notaSyncTimer = null;
 
 async function openNotas() {
   S.tab = "notas";
@@ -975,7 +1110,19 @@ async function openNotas() {
     b.classList.toggle("on", b.dataset.n === "notas");
   });
 
-  $("tools").replaceChildren();
+  leaveGrid();
+  notaSel = null;
+
+  // Acceso directo a la carpeta de proyectos en la nube de Exactas
+  $("tools").replaceChildren(
+    el("a", {
+      class: "btn",
+      href: NUBE_URL,
+      target: "_blank",
+      rel: "noopener noreferrer",
+      title: "Abre la carpeta de proyectos en la nube de Exactas (en una pestaña nueva)"
+    }, "📁 Abrir carpeta de proyectos")
+  );
   $("grid").replaceChildren();
 
   return loadNotas();
@@ -989,17 +1136,99 @@ async function loadNotas() {
     .select("*")
     .order("updated_at", { ascending: false });
 
+  if (S.tab !== "notas") return;
+
   if (res.error) {
     status(errMsg(res.error), true);
     return;
   }
 
   renderNotas(res.data || []);
+  liveOn("notas", "notas", refrescarNotas);
   status("");
 }
 
+// Igual que en Borradores: lo que escribís vos tiene prioridad; si hay algo sin guardar se espera y se reintenta.
+async function refrescarNotas() {
+  if (S.tab !== "notas" || !$("nota-list")) return;
+  clearTimeout(notaSyncTimer);
+  if (pendingNota || notaSaving > 0) { notaSyncTimer = setTimeout(refrescarNotas, 1500); return; }
+
+  var res = await sb.from("notas").select("*").order("updated_at", { ascending: false });
+  if (res.error || S.tab !== "notas" || !$("nota-list")) return;
+  if (pendingNota || notaSaving > 0) { notaSyncTimer = setTimeout(refrescarNotas, 1500); return; }
+
+  var rows = res.data || [];
+  var cur = notaRows.find(function (x) { return x.id === notaSel; });
+  var i = rows.findIndex(function (x) { return x.id === notaSel; });
+  var perdida = false;
+
+  if (cur && i >= 0) {
+    var nueva = rows[i];
+    if (((cur.titulo || "") !== (nueva.titulo || "") || (cur.contenido || "") !== (nueva.contenido || "")) &&
+        new Date(nueva.updated_at) > new Date(cur.updated_at)) {
+      Object.assign(cur, nueva);
+      pintarCamposNota(cur);
+    }
+    rows[i] = cur;
+  } else if (cur) {
+    perdida = true; // la borró la otra persona
+  }
+
+  notaRows = rows;
+  pintarListaNotas();
+
+  if (perdida || !cur) {
+    notaSel = null;
+    if (rows.length) renderNotaEditor(notaRows, rows[0].id); else renderNotasVacio();
+    if (perdida) status("Esa nota la eliminó otra persona.", true);
+  }
+}
+
+function pintarCamposNota(r) {
+  [["note-title", r.titulo], ["note-body", r.contenido]].forEach(function (p) {
+    var input = $(p[0]), v = p[1] || "";
+    if (!input || input.value === v) return;
+    var a = document.activeElement === input, s = input.selectionStart, e = input.selectionEnd;
+    input.value = v;
+    if (a) { try { input.setSelectionRange(Math.min(s, v.length), Math.min(e, v.length)); } catch (x) { /* ignorar */ } }
+  });
+  if ($("note-body")) grow($("note-body"));
+}
+
+function pintarListaNotas() {
+  var list = $("nota-list");
+  if (!list) return;
+  list.replaceChildren.apply(list, notaRows.map(function (r) {
+    return el("button", {
+      class: "draft-item" + (r.id === notaSel ? " on" : ""),
+      "data-id": r.id,
+      onclick: function () { cambiarNota(r.id); }
+    },
+      el("strong", {}, r.titulo || "(Sin título)"),
+      el("span", {}, r.updated_at ? new Date(r.updated_at).toLocaleString("es-AR") : "")
+    );
+  }));
+}
+
+async function cambiarNota(id) {
+  await flushNotaSave();
+  renderNotaEditor(notaRows, id);
+}
+
+function renderNotasVacio() {
+  var editor = $("nota-editor");
+  if (!editor) return;
+  editor.replaceChildren(
+    el("div", { class: "draft-empty" },
+      "No hay notas todavía.",
+      el("button", { onclick: function () { nuevaNota(); } }, "Crear primera nota")
+    )
+  );
+}
+
 function renderNotas(rows) {
-  var selected = rows.length ? rows[0] : null;
+  notaRows = rows;
 
   var layout = el("div", { class: "draft-layout" });
 
@@ -1008,35 +1237,11 @@ function renderNotas(rows) {
   sidebar.append(
     el("div", { class: "draft-sidebar-head" },
       el("strong", {}, "Notas / Proyectos"),
-      el("button", {
-        onclick: function () {
-          nuevaNota();
-        }
-      }, "+ Nueva")
+      el("button", { onclick: function () { nuevaNota(); } }, "+ Nueva")
     )
   );
 
-  var list = el("div", { class: "draft-list" });
-
-  rows.forEach(function (r) {
-    var item = el("button", {
-      class: "draft-item",
-      onclick: function () {
-        renderNotaEditor(rows, r.id);
-      }
-    },
-      el("strong", {}, r.titulo || "(Sin título)"),
-      el("span", {},
-        r.updated_at
-          ? new Date(r.updated_at).toLocaleString("es-AR")
-          : ""
-      )
-    );
-
-    list.append(item);
-  });
-
-  sidebar.append(list);
+  sidebar.append(el("div", { class: "draft-list", id: "nota-list" }));
 
   var editor = el("section", {
     class: "draft-editor",
@@ -1047,19 +1252,14 @@ function renderNotas(rows) {
 
   $("grid").replaceChildren(layout);
 
+  var selected = rows.find(function (r) { return r.id === notaSel; }) || rows[0] || null;
+  notaSel = selected ? selected.id : null;
+  pintarListaNotas();
+
   if (selected) {
-    renderNotaEditor(rows, selected.id);
+    renderNotaEditor(notaRows, selected.id);
   } else {
-    editor.replaceChildren(
-      el("div", { class: "draft-empty" },
-        "No hay notas todavía.",
-        el("button", {
-          onclick: function () {
-            nuevaNota();
-          }
-        }, "Crear primera nota")
-      )
-    );
+    renderNotasVacio();
   }
 }
 
@@ -1074,10 +1274,8 @@ function renderNotaEditor(rows, id) {
 
   if (!editor) return;
 
-  if (notaSaveTimer) {
-    clearTimeout(notaSaveTimer);
-    notaSaveTimer = null;
-  }
+  notaSel = r.id;
+  pintarListaNotas();
 
   var title = el("input", {
     id: "note-title",
@@ -1155,24 +1353,33 @@ function programarGuardadoNota(r) {
     clearTimeout(notaSaveTimer);
   }
 
-  notaSaveTimer = setTimeout(function () {
-    guardarNota(r);
-  }, 700);
+  // Se copia lo escrito ahora: si cambiás de nota o de solapa antes de que se guarde, no se pierde ni se mezcla.
+  pendingNota = { r: r, titulo: $("note-title").value, contenido: $("note-body").value };
+  notaSaveTimer = setTimeout(flushNotaSave, 700);
 }
 
-async function guardarNota(r) {
-  var title = $("note-title");
-  var body = $("note-body");
+// Guarda ya lo pendiente (si hay). Se usa antes de cambiar de nota, crear o borrar.
+async function flushNotaSave() {
+  clearTimeout(notaSaveTimer);
+  notaSaveTimer = null;
+  var p = pendingNota;
+  pendingNota = null;
+  if (p) await guardarNota(p.r, p);
+}
 
-  if (!title || !body) return;
-
-  var res = await sb
-    .from("notas")
-    .update({
-      titulo: title.value,
-      contenido: body.value
-    })
-    .eq("id", r.id);
+async function guardarNota(r, p) {
+  notaSaving++;
+  var res;
+  try {
+    res = await sb
+      .from("notas")
+      .update({ titulo: p.titulo, contenido: p.contenido })
+      .eq("id", r.id)
+      .select("updated_at, updated_by")
+      .single();
+  } finally {
+    notaSaving--;
+  }
 
   if (res.error) {
     status(errMsg(res.error), true);
@@ -1183,11 +1390,13 @@ async function guardarNota(r) {
     return;
   }
 
-  r.titulo = title.value;
-  r.contenido = body.value;
+  r.titulo = p.titulo;
+  r.contenido = p.contenido;
+  r.updated_at = res.data.updated_at;
+  r.updated_by = res.data.updated_by;
 
   var info = $("note-save-info");
-  if (info) {
+  if (info && !pendingNota) {
     info.textContent = "Guardado";
   }
 
@@ -1195,6 +1404,8 @@ async function guardarNota(r) {
 }
 
 async function nuevaNota() {
+  await flushNotaSave();
+
   var res = await sb
     .from("notas")
     .insert({
@@ -1209,6 +1420,7 @@ async function nuevaNota() {
     return;
   }
 
+  notaSel = res.data.id;
   await loadNotas();
 
   setTimeout(function () {
@@ -1221,20 +1433,27 @@ async function nuevaNota() {
 }
 
 async function eliminarNota(r) {
-  if (!confirm("¿Eliminar esta nota?")) {
+  if (!confirm("¿Eliminar esta nota? Va a la Papelera y se puede restaurar desde ahí.")) {
     return;
   }
 
-  var res = await sb
-    .from("notas")
-    .delete()
-    .eq("id", r.id);
+  // Lo pendiente de esta nota no tiene sentido guardarlo; si es de otra, se guarda.
+  if (pendingNota && pendingNota.r.id === r.id) {
+    clearTimeout(notaSaveTimer);
+    notaSaveTimer = null;
+    pendingNota = null;
+  } else {
+    await flushNotaSave();
+  }
+
+  var res = await borrarFila("notas", r.id);
 
   if (res.error) {
     status(errMsg(res.error), true);
     return;
   }
 
+  notaSel = null;
   await loadNotas();
   status("Nota eliminada");
 }
@@ -1495,8 +1714,8 @@ setInterval(function () {
   }
 
   async function del(r) {
-    if (!confirm("¿Borrar esta fila? Esto no se puede deshacer.")) return;
-    var res = await sb.from(S.tab).delete().eq("id", r.id);
+    if (!confirm("¿Borrar esta fila? Va a la Papelera y se puede restaurar desde ahí.")) return;
+    var res = await borrarFila(S.tab, r.id);
     if (res.error) return status("No se pudo borrar: " + errMsg(res.error), true);
     await load(false);
   }
@@ -1515,6 +1734,148 @@ setInterval(function () {
     });
     var cnt = $("count");
     if (cnt) cnt.textContent = "Mostrando " + shown + " de " + S.data.rows.length;
+  }
+
+  // ---------- Papelera ----------
+  // Todo lo que se borra se copia antes en la tabla "papelera" (ver supabase/papelera.sql) y se puede restaurar desde el botón Papelera.
+  var NOMBRES_EXTRA = { borradores: "Borradores", notas: "Notas", eventos: "Calendario" };
+  function nombreTabla(t) { return (TABLES[t] && TABLES[t].label) || NOMBRES_EXTRA[t] || t; }
+  function tablaFaltante(e, nombre) {
+    var m = errMsg(e);
+    return !!e && (e.code === "42P01" || (m.indexOf(nombre) >= 0 && /exist|relation|schema cache/i.test(m)));
+  }
+
+  async function borrarFila(tabla, id) {
+    var g = await sb.from(tabla).select("*").eq("id", id).maybeSingle();
+    if (g.error) return { error: g.error };
+    if (g.data) {
+      var p = await sb.from("papelera").insert({ tabla: tabla, datos: g.data });
+      if (p.error && !confirm("No se pudo guardar una copia en la Papelera (" + errMsg(p.error) + ").\n\n¿Borrar igual? No se va a poder deshacer.")) {
+        return { error: { message: "se canceló el borrado." } };
+      }
+    }
+    return await sb.from(tabla).delete().eq("id", id);
+  }
+
+  function resumenPapelera(d) {
+    var claves = ["titulo", "asunto", "expediente", "nombre", "dpto", "cuenta", "observaciones", "observacion", "destinatario"], txt = "";
+    for (var i = 0; i < claves.length && !txt; i++) if (d[claves[i]]) txt = String(d[claves[i]]);
+    if (txt.length > 90) txt = txt.slice(0, 90) + "…";
+    return (d.fecha ? fmtDate(d.fecha) + " · " : "") + (txt || "(vacío)");
+  }
+
+  async function abrirPapelera() {
+    var res = await sb.from("papelera").select("*").order("deleted_at", { ascending: false }).limit(100);
+    var cuerpo;
+    if (res.error) {
+      cuerpo = el("p", { class: "note" }, tablaFaltante(res.error, "papelera")
+        ? "Falta crear la tabla «papelera» en Supabase. Corré el archivo supabase/papelera.sql en el editor SQL de Supabase y recargá esta página."
+        : "No se pudo abrir la papelera: " + errMsg(res.error));
+    } else if (!res.data.length) {
+      cuerpo = el("p", { class: "note" }, "La papelera está vacía.");
+    } else {
+      cuerpo = el("div", { class: "trash-list" }, res.data.map(itemPapelera));
+    }
+    abrirModal([
+      el("h3", {}, "Papelera"),
+      el("p", { class: "note" }, "Lo que se borra queda acá (se muestran los últimos 100)."),
+      cuerpo,
+      el("div", { class: "modal-actions" }, el("button", { class: "ghost", onclick: cerrarModal }, "Cerrar"))
+    ], "wide");
+  }
+
+  function itemPapelera(p) {
+    var btn = el("button", { onclick: function () { restaurarDePapelera(p, fila, btn); } }, "Restaurar");
+    var fila = el("div", { class: "trash-item" },
+      el("div", { class: "trash-txt" },
+        el("strong", {}, nombreTabla(p.tabla)),
+        el("span", {}, resumenPapelera(p.datos || {})),
+        el("small", {}, "Borrado" + (p.deleted_by ? " por " + p.deleted_by : "") + (p.deleted_at ? " · " + new Date(p.deleted_at).toLocaleString("es-AR") : ""))),
+      btn);
+    return fila;
+  }
+
+  async function restaurarDePapelera(p, fila, btn) {
+    btn.disabled = true;
+    var d = Object.assign({}, p.datos);
+    delete d.id; delete d.updated_at; delete d.updated_by; // se vuelve a crear con id nuevo
+    var r = await sb.from(p.tabla).insert(d);
+    if (r.error) {
+      btn.disabled = false;
+      fila.append(el("p", { class: "err" }, "No se pudo restaurar: " + errMsg(r.error)));
+      return;
+    }
+    var q = await sb.from("papelera").delete().eq("id", p.id);
+    fila.replaceChildren(el("span", {}, "✓ Restaurado en " + nombreTabla(p.tabla) + (q.error ? " (no se pudo sacar de la papelera)" : "")));
+    recargarPestana();
+  }
+
+  // Si estás mirando la pestaña a la que se restauró algo, se actualiza.
+  function recargarPestana() {
+    if (S.tab === "borradores") refrescarBorradores();
+    else if (S.tab === "notas") refrescarNotas();
+    else if (S.tab === "calendario") loadCalendario(true);
+    else if (S.data) refresh();
+  }
+
+  // ---------- Copia de seguridad ----------
+  // Descarga un archivo .json con TODAS las tablas. Para volver a cargarlo: scripts/restaurar_copia.py (genera el SQL).
+  var CLAVE_COPIA = "seguimiento_ultima_copia";
+
+  async function leerTodo(tabla) {
+    var out = [], desde = 0;
+    for (;;) { // Supabase devuelve como máximo 1000 filas por consulta: se pide por tandas
+      var r = await sb.from(tabla).select("*").order("id", { ascending: true }).range(desde, desde + 999);
+      if (r.error) throw r.error;
+      out = out.concat(r.data);
+      if (r.data.length < 1000) break;
+      desde += 1000;
+    }
+    return out;
+  }
+
+  async function copiaSeguridad() {
+    status("Preparando la copia…");
+    var nombres = Object.keys(TABLES).concat(["borradores", "notas", "eventos"]);
+    var tablas = {}, faltan = [], filas = 0;
+    try {
+      for (var n of nombres) {
+        try { tablas[n] = await leerTodo(n); filas += tablas[n].length; }
+        catch (e) { if (tablaFaltante(e, n)) faltan.push(n); else throw e; }
+      }
+    } catch (e) { return status("No se pudo hacer la copia: " + errMsg(e), true); }
+
+    descargarArchivo("copia-seguridad-" + today() + ".json",
+      JSON.stringify({ app: "seguimiento", version: 1, creado: new Date().toISOString(), por: S.user.email, tablas: tablas }, null, 1),
+      "application/json");
+    try { localStorage.setItem(CLAVE_COPIA, new Date().toISOString()); } catch (e) { /* sin almacenamiento: solo no se recuerda la fecha */ }
+    actualizarAvisoCopia();
+    status("Copia descargada ✓ (" + filas + " filas)" + (faltan.length ? ". No se incluyó: " + faltan.join(", ") + " (tabla sin crear)" : ""));
+  }
+
+  function diasDesdeCopia() {
+    var t = null;
+    try { t = localStorage.getItem(CLAVE_COPIA); } catch (e) { t = null; }
+    var d = t ? Math.floor((Date.now() - new Date(t).getTime()) / 86400000) : NaN;
+    return isNaN(d) ? null : Math.max(0, d);
+  }
+
+  // Muestra en la barra cuándo fue la última copia hecha desde este equipo; se pone en rojo si pasó una semana.
+  function actualizarAvisoCopia() {
+    var s = $("bk-info");
+    if (!s) return;
+    var d = diasDesdeCopia();
+    s.textContent = d == null ? "Sin copias en este equipo" : d === 0 ? "Última copia: hoy" : "Última copia: hace " + d + (d === 1 ? " día" : " días");
+    s.className = "bk-info" + (d == null || d >= 7 ? " warn" : "");
+    s.title = "La fecha se guarda en este navegador: cada persona ve la de su propio equipo.";
+  }
+
+  function avisoCopiaInicial() {
+    var d = diasDesdeCopia();
+    if (d != null && d < 7) return;
+    var msg = "Hace más de una semana que no hacés una copia de seguridad (botón de arriba).";
+    status(msg);
+    setTimeout(function () { if ($("status") && $("status").textContent === msg) status(""); }, 8000);
   }
 
   // ---------- Exportar a Excel (todas las pestañas) ----------
