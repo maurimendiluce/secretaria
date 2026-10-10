@@ -276,3 +276,23 @@ a.btn:hover{filter:brightness(1.1)}
 tr.tipo-para{background:#e3eefc}
 tr.tipo-en{background:#efe6fb}
 @media (prefers-color-scheme:dark){tr.tipo-para{background:#1f2f52}tr.tipo-en{background:#33264d}}
+
+/* Calendario: colores de eventos y etiqueta de persona */
+:root{--c-azul:#2358d6;--c-verde:#17803f;--c-naranja:#c2410c;--c-rojo:#c93c3c;--c-violeta:#7a4fd0;--c-gris:#667085}
+@media (prefers-color-scheme:dark){:root{--c-azul:#6b93f5;--c-verde:#4cc27f;--c-naranja:#f0a05a;--c-rojo:#f07a7a;--c-violeta:#a98af0;--c-gris:#98a2b3}}
+.cal-ev.c-azul,.swatch.c-azul{background:var(--c-azul)}
+.cal-ev.c-verde,.swatch.c-verde{background:var(--c-verde)}
+.cal-ev.c-naranja,.swatch.c-naranja{background:var(--c-naranja)}
+.cal-ev.c-rojo,.swatch.c-rojo{background:var(--c-rojo)}
+.cal-ev.c-violeta,.swatch.c-violeta{background:var(--c-violeta)}
+.cal-ev.c-gris,.swatch.c-gris{background:var(--c-gris)}
+.cal-up-item{border-left:4px solid var(--c-azul)}
+.cal-up-item.c-verde{border-left-color:var(--c-verde)}
+.cal-up-item.c-naranja{border-left-color:var(--c-naranja)}
+.cal-up-item.c-rojo{border-left-color:var(--c-rojo)}
+.cal-up-item.c-violeta{border-left-color:var(--c-violeta)}
+.cal-up-item.c-gris{border-left-color:var(--c-gris)}
+.color-pick{display:flex;gap:8px}
+.swatch{width:28px;height:28px;padding:0;border-radius:50%;border:2px solid transparent}
+.swatch.on{border-color:var(--fg);box-shadow:0 0 0 2px var(--card) inset}
+.modal select{width:100%;border:1px solid var(--line);border-radius:6px;padding:8px;background:var(--card);color:var(--fg)}

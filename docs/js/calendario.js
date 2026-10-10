@@ -50,8 +50,21 @@ function cmpEvento(a, b) {
   return ha < hb ? -1 : ha > hb ? 1 : a.id - b.id; // primero los que no tienen hora
 }
 
+// Colores y etiquetas de persona de los eventos. Para sumar un color: agregarlo acá y sus reglas en style.css.
+var COLORES = ["azul", "verde", "naranja", "rojo", "violeta", "gris"];
+var PERSONAS = ["Naty", "Mauri", "Naty / Mauri"];
+var SIGLAS = { Naty: "N", Mauri: "M", "Naty / Mauri": "N+M" };
+
+function claseColor(e) {
+  return "c-" + (COLORES.indexOf(e.color) >= 0 ? e.color : "azul");
+}
+
 function textoEvento(e) {
-  return (e.hora ? horaCorta(e.hora) + " " : "") + (e.titulo || "(Sin título)");
+  return (
+    (e.persona ? (SIGLAS[e.persona] || e.persona) + " · " : "") +
+    (e.hora ? horaCorta(e.hora) + " " : "") +
+    (e.titulo || "(Sin título)")
+  );
 }
 
 export function openCalendario() {
@@ -227,7 +240,7 @@ function renderCalendario() {
         el(
           "button",
           {
-            class: "cal-ev",
+            class: "cal-ev " + claseColor(e),
             title: textoEvento(e) + (e.descripcion ? "\n" + e.descripcion : ""),
             onclick: function (ev) {
               ev.stopPropagation();
@@ -274,7 +287,7 @@ function renderCalendario() {
             return el(
               "button",
               {
-                class: "cal-up-item",
+                class: "cal-up-item " + claseColor(e),
                 onclick: function () {
                   editarEvento(e);
                 },
@@ -287,7 +300,8 @@ function renderCalendario() {
                   pad2(d.getDate()) +
                   "/" +
                   pad2(d.getMonth() + 1) +
-                  (e.hora ? " · " + horaCorta(e.hora) : ""),
+                  (e.hora ? " · " + horaCorta(e.hora) : "") +
+                  (e.persona ? " · " + e.persona : ""),
               ),
               el("strong", {}, e.titulo || "(Sin título)"),
             );
@@ -317,7 +331,7 @@ function verDia(iso) {
         return el(
           "button",
           {
-            class: "cal-up-item",
+            class: "cal-up-item " + claseColor(e),
             onclick: function () {
               editarEvento(e);
             },
@@ -361,6 +375,36 @@ function editarEvento(e, fecha) {
   inH.value = e ? horaCorta(e.hora) : "";
   inD.value = e ? e.descripcion || "" : "";
 
+  var inP = el(
+    "select",
+    { id: "ev-persona" },
+    el("option", { value: "" }, "(nadie en particular)"),
+    PERSONAS.map(function (p) {
+      return el("option", { value: p }, p);
+    }),
+  );
+  inP.value = e ? e.persona || "" : "";
+
+  var color = e && COLORES.indexOf(e.color) >= 0 ? e.color : "azul";
+  var colores = el(
+    "div",
+    { class: "color-pick" },
+    COLORES.map(function (c) {
+      return el("button", {
+        type: "button",
+        class: "swatch c-" + c + (c === color ? " on" : ""),
+        title: c,
+        onclick: function (ev) {
+          color = c;
+          colores.querySelectorAll(".swatch").forEach(function (b) {
+            b.classList.remove("on");
+          });
+          ev.currentTarget.classList.add("on");
+        },
+      });
+    }),
+  );
+
   var err = el("p", { class: "err", id: "ev-err" });
   var btnG = el("button", { onclick: guardar }, "Guardar");
 
@@ -381,6 +425,8 @@ function editarEvento(e, fecha) {
       fecha: inF.value,
       hora: inH.value || null,
       descripcion: inD.value.trim() || null,
+      persona: inP.value || null,
+      color: color,
     };
     btnG.disabled = true;
     err.textContent = "";
@@ -427,6 +473,10 @@ function editarEvento(e, fecha) {
     inF,
     el("label", {}, "Hora (opcional)"),
     inH,
+    el("label", {}, "Para"),
+    inP,
+    el("label", {}, "Color"),
+    colores,
     el("label", {}, "Descripción"),
     inD,
     err,
