@@ -138,3 +138,11 @@ export async function copiarTexto(t) {
     return ok;
   }
 }
+
+// Minúsculas y sin tildes, para que el buscador no distinga "Comisión" de "comision".
+export function normalizar(s) {
+  return String(s == null ? "" : s)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}

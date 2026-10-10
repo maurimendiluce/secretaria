@@ -1,6 +1,6 @@
 // Solapa Notas / Proyectos: notas con autoguardado, descargas y cambios en vivo.
 
-import { $, S, copiarTexto, descargarArchivo, el, errMsg, grow, sb, status } from "./core.js";
+import { $, S, copiarTexto, descargarArchivo, el, errMsg, grow, normalizar, sb, status } from "./core.js";
 import { descargarDocx, descargarOdt } from "./exportar.js";
 import { leaveGrid, liveOn } from "./live.js";
 import { borrarFila } from "./papelera.js";
