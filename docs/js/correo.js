@@ -1,7 +1,7 @@
 // Abrir un borrador en Gmail o en el programa de correo, y preguntar si se envió.
 
 import { draftState, flushDraftSave, setBorradorEstado } from "./borradores.js";
-import { $, el, status } from "./core.js";
+import { $, copiarTexto, el, status } from "./core.js";
 
 // ---------- Abrir el borrador en el correo ----------
 var MAX_URL_GMAIL = 7000;
@@ -41,25 +41,6 @@ function prepararEnvio() {
   };
 }
 
-async function copiarTexto(t) {
-  try {
-    await navigator.clipboard.writeText(t);
-    return true;
-  } catch (e) {
-    var ta = el("textarea", { style: "position:fixed;opacity:0" });
-    ta.value = t;
-    document.body.append(ta);
-    ta.select();
-    var ok = false;
-    try {
-      ok = document.execCommand("copy");
-    } catch (e2) {
-      ok = false;
-    }
-    ta.remove();
-    return ok;
-  }
-}
 
 export async function copiarMensaje() {
   var ok = await copiarTexto($("draft-body").value);

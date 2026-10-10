@@ -125,3 +125,24 @@ export function fmtDate(v) {
   var m = /^(\d{4})-(\d\d)-(\d\d)$/.exec(v);
   return m ? m[3] + "/" + m[2] + "/" + m[1] : v;
 }
+
+// Copia texto al portapapeles (con plan B para navegadores que lo bloquean).
+export async function copiarTexto(t) {
+  try {
+    await navigator.clipboard.writeText(t);
+    return true;
+  } catch (e) {
+    var ta = el("textarea", { style: "position:fixed;opacity:0" });
+    ta.value = t;
+    document.body.append(ta);
+    ta.select();
+    var ok = false;
+    try {
+      ok = document.execCommand("copy");
+    } catch (e2) {
+      ok = false;
+    }
+    ta.remove();
+    return ok;
+  }
+}

@@ -1,6 +1,7 @@
 // Solapa Notas / Proyectos: notas con autoguardado, descargas y cambios en vivo.
 
-import { $, S, descargarArchivo, el, errMsg, grow, normalizar, sb, status } from "./core.js";
+import { $, S, copiarTexto, descargarArchivo, el, errMsg, grow, sb, status } from "./core.js";
+import { descargarDocx, descargarOdt } from "./exportar.js";
 import { leaveGrid, liveOn } from "./live.js";
 import { borrarFila } from "./papelera.js";
 import { NUBE_URL } from "./tablas.js";
@@ -309,6 +310,16 @@ function renderNotaEditor(rows, id) {
       {
         class: "ghost",
         onclick: function () {
+          copiarNota(r);
+        },
+      },
+      "Copiar nota",
+    ),
+    el(
+      "button",
+      {
+        class: "ghost",
+        onclick: function () {
           descargarNota(r, "md");
         },
       },
@@ -325,7 +336,27 @@ function renderNotaEditor(rows, id) {
       },
       "Descargar .txt",
     ),
+    el(
+      "button",
+      {
+        class: "ghost",
+        onclick: function () {
+          descargarNota(r, "docx");
+        },
+      },
+      "Descargar .docx",
+    ),
 
+    el(
+      "button",
+      {
+        class: "ghost",
+        onclick: function () {
+          descargarNota(r, "odt");
+        },
+      },
+      "Descargar .odt",
+    ),
     el(
       "button",
       {
@@ -473,16 +504,37 @@ function safeFileName(name) {
   return (name || "nota").replace(/[\\/:*?"<>|]/g, "_").trim() || "nota";
 }
 
-function descargarNota(r, formato) {
-  var title = $("note-title") ? $("note-title").value : r.titulo || "nota";
+function textoNota(r) {
+  return {
+    title: $("note-title") ? $("note-title").value : r.titulo || "nota",
+    content: $("note-body") ? $("note-body").value : r.contenido || "",
+  };
+}
 
-  var content = $("note-body") ? $("note-body").value : r.contenido || "";
+async function copiarNota(r) {
+  var n = textoNota(r);
+  var ok = await copiarTexto(n.title + "\n\n" + n.content);
+  status(ok ? "Nota copiada ✓" : "No se pudo copiar la nota.", !ok);
+  if (ok)
+    setTimeout(function () {
+      if ($("status") && $("status").textContent === "Nota copiada ✓") status("");
+    }, 1500);
+}
+
+function descargarNota(r, formato) {
+  var n = textoNota(r);
+  var title = n.title;
+  var content = n.content;
 
   var base = safeFileName(title);
 
   if (formato === "md") {
     descargarArchivo(base + ".md", "# " + title + "\n\n" + content, "text/markdown");
   }
+
+  if (formato === "docx") descargarDocx(base, title, content);
+
+  if (formato === "odt") descargarOdt(base, title, content);
 
   if (formato === "txt") {
     descargarArchivo(base + ".txt", title + "\n\n" + content, "text/plain");
