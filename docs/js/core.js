@@ -1,13 +1,5 @@
 // Piezas básicas que usan todos los módulos: conexión con Supabase, estado, ayudas para armar HTML, mensajes y ventanas.
 
-// Para buscar sin importar mayúsculas ni tildes.
-export function normalizar(s) {
-  return String(s || "")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
-}
-
 export function today() {
   var d = new Date(),
     p = function (n) {

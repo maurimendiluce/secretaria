@@ -41,7 +41,6 @@ function prepararEnvio() {
   };
 }
 
-
 export async function copiarMensaje() {
   var ok = await copiarTexto($("draft-body").value);
   status(ok ? "Mensaje copiado ✓" : "No se pudo copiar el mensaje.", !ok);
