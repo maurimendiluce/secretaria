@@ -124,23 +124,23 @@ function showApp() {
           "button",
           {
             class: "tab",
-            "data-n": "calendario",
-            onclick: function () {
-              openCalendario();
-            },
-          },
-          "Calendario",
-        ),
-        el(
-          "button",
-          {
-            class: "tab",
             "data-n": "notas",
             onclick: function () {
               openNotas();
             },
           },
           "Notas / Proyectos",
+        ),
+        el(
+          "button",
+          {
+            class: "tab",
+            "data-n": "calendario",
+            onclick: function () {
+              openCalendario();
+            },
+          },
+          "Calendario",
         ),
       ]),
   );
