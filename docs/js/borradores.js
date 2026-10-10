@@ -1,6 +1,6 @@
 // Solapa Borradores: lista, editor con autoguardado, estados Revisar / Enviado / Plantilla y cambios en vivo.
 
-import { $, S, el, errMsg, sb, status } from "./core.js";
+import { $, S, el, errMsg, normalizar, sb, status } from "./core.js";
 import { abrirEnGmail, abrirEnProgramaCorreo, copiarMensaje } from "./correo.js";
 import { leaveGrid, liveOn } from "./live.js";
 import { borrarFila } from "./papelera.js";
@@ -8,6 +8,7 @@ import { borrarFila } from "./papelera.js";
 var draftRows = [];
 // lo que se está mostrando
 var draftSel = null;
+var draftQuery = ""; // texto del buscador
 // id del borrador abierto
 var draftSaving = 0;
 // guardados en curso
@@ -21,6 +22,7 @@ export function openBorradores() {
   });
 
   leaveGrid();
+  draftQuery = "";
   draftSel = null;
   $("tools").replaceChildren();
   $("grid").replaceChildren();
@@ -132,17 +134,24 @@ function pintarCamposBorrador(r) {
 }
 
 function borradoresVisibles() {
+  var q = normalizar(draftQuery);
   return draftRows.filter(function (r) {
-    return !draftFilter || draftState(r) === draftFilter;
+    if (draftFilter && draftState(r) !== draftFilter) return false;
+    return !q || normalizar([r.asunto, r.destinatario, r.cc, r.cuerpo].join(" ")).indexOf(q) >= 0;
   });
 }
 
 function pintarListaBorradores() {
   var list = $("draft-list");
   if (!list) return;
+  var vis = borradoresVisibles();
+  if (!vis.length) {
+    list.replaceChildren(el("p", { class: "note sin-resultados" }, draftQuery ? "Sin resultados." : "No hay borradores."));
+    return;
+  }
   list.replaceChildren.apply(
     list,
-    borradoresVisibles().map(function (r) {
+    vis.map(function (r) {
       return el(
         "button",
         {
@@ -194,7 +203,16 @@ function renderBorradores(rows) {
           return o;
         }),
       ),
-
+      el("input", {
+        type: "search",
+        class: "draft-search",
+        placeholder: "Buscar…",
+        value: draftQuery,
+        oninput: function () {
+          draftQuery = this.value;
+          pintarListaBorradores();
+        },
+      }),
       el("div", { class: "draft-list", id: "draft-list" }),
     ),
 
@@ -429,7 +447,7 @@ async function saveBorrador(r, patch) {
 async function newBorrador() {
   await flushDraftSave();
   draftFilter = ""; // para que el borrador nuevo no quede oculto por un filtro
-
+  draftQuery = "";
   status("Creando…");
 
   var res = await sb
@@ -512,6 +530,7 @@ async function usarPlantilla(r) {
   }
 
   draftFilter = ""; // para que la copia no quede oculta por un filtro
+  draftQuery = "";
   draftSel = res.data.id;
   await loadBorradores();
   status("Copia creada. La plantilla quedó como estaba.");

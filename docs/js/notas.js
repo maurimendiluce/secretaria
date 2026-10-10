@@ -1,6 +1,6 @@
 // Solapa Notas / Proyectos: notas con autoguardado, descargas y cambios en vivo.
 
-import { $, S, descargarArchivo, el, errMsg, grow, sb, status } from "./core.js";
+import { $, S, descargarArchivo, el, errMsg, grow, normalizar, sb, status } from "./core.js";
 import { leaveGrid, liveOn } from "./live.js";
 import { borrarFila } from "./papelera.js";
 import { NUBE_URL } from "./tablas.js";
@@ -10,6 +10,8 @@ var notaSaveTimer = null;
 var notaRows = [];
 
 var notaSel = null;
+
+var notaQuery = ""; // texto del buscador
 
 var notaSaving = 0;
 
@@ -26,6 +28,7 @@ export async function openNotas() {
 
   leaveGrid();
   notaSel = null;
+  notaQuery = "";
 
   // Acceso directo a la carpeta de proyectos en la nube de Exactas
   $("tools").replaceChildren(
@@ -136,12 +139,24 @@ function pintarCamposNota(r) {
   if ($("note-body")) grow($("note-body"));
 }
 
+function notasVisibles() {
+  var q = normalizar(notaQuery);
+  return notaRows.filter(function (r) {
+    return !q || normalizar([r.titulo, r.contenido].join(" ")).indexOf(q) >= 0;
+  });
+}
+
 function pintarListaNotas() {
   var list = $("nota-list");
   if (!list) return;
+  var vis = notasVisibles();
+  if (!vis.length) {
+    list.replaceChildren(el("p", { class: "note sin-resultados" }, notaQuery ? "Sin resultados." : "No hay notas."));
+    return;
+  }
   list.replaceChildren.apply(
     list,
-    notaRows.map(function (r) {
+    vis.map(function (r) {
       return el(
         "button",
         {
@@ -208,6 +223,18 @@ function renderNotas(rows) {
     ),
   );
 
+  sidebar.append(
+    el("input", {
+      type: "search",
+      class: "draft-search",
+      placeholder: "Buscar…",
+      value: notaQuery,
+      oninput: function () {
+        notaQuery = this.value;
+        pintarListaNotas();
+      },
+    }),
+  );
   sidebar.append(el("div", { class: "draft-list", id: "nota-list" }));
 
   var editor = el("section", {
@@ -404,6 +431,7 @@ async function nuevaNota() {
   }
 
   notaSel = res.data.id;
+  notaQuery = ""; // para que la nota nueva no quede oculta por la búsqueda
   await loadNotas();
 
   setTimeout(function () {

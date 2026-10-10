@@ -296,3 +296,7 @@ tr.tipo-en{background:#efe6fb}
 .swatch{width:28px;height:28px;padding:0;border-radius:50%;border:2px solid transparent}
 .swatch.on{border-color:var(--fg);box-shadow:0 0 0 2px var(--card) inset}
 .modal select{width:100%;border:1px solid var(--line);border-radius:6px;padding:8px;background:var(--card);color:var(--fg)}
+
+/* Buscador de Borradores y Notas */
+.draft-search{width:calc(100% - 16px);margin:0 8px 8px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--fg)}
+.sin-resultados{padding:10px 12px;margin:0}
