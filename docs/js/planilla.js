@@ -354,6 +354,40 @@ function fillFilters() {
   });
 }
 
+// ---------- Antigüedad de los pendientes ----------
+// Agrega (o saca) la etiqueta "hace N días" debajo de la fecha de la fila. Ver `antiguedad` en tablas.js.
+function marcarEdad(r, tr) {
+  var cfg = TABLES[S.tab].antiguedad;
+  if (!cfg) return;
+  var fi = colPorClave(cfg.fecha),
+    ei = colPorClave(cfg.estado);
+  if (fi < 0 || ei < 0) return;
+  var td = tr.children[fi];
+  var vieja = td.querySelector(".edad");
+  if (vieja) vieja.remove();
+  var f = r.v[fi];
+  if (!f || cfg.valores.indexOf(r.v[ei]) < 0) return;
+  var p = f.split("-"),
+    hoy = new Date();
+  var dias = Math.round(
+    (new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate()) - new Date(+p[0], +p[1] - 1, +p[2])) / 86400000,
+  );
+  if (!(dias >= cfg.dias)) return;
+  td.append(
+    el(
+      "small",
+      { class: "edad" + (dias >= cfg.urgente ? " urgente" : ""), title: "Días desde la fecha de esta fila" },
+      "hace " + dias + " días",
+    ),
+  );
+}
+
+function colPorClave(k) {
+  return S.data.cols.findIndex(function (c) {
+    return c.i === k;
+  });
+}
+
 function rowEl(r) {
   var d = S.data,
     tr = el("tr", { "data-id": r.id, title: r.by ? "Editado por " + r.by : "" });
@@ -382,6 +416,7 @@ function rowEl(r) {
     });
     tr.append(el("td", {}, inp));
   });
+  marcarEdad(r, tr);
   tr.append(
     el(
       "td",
@@ -411,6 +446,7 @@ async function save(r, k, c, inp, tr) {
   var res = await sb.from(S.tab).update(patch).eq("id", r.id).select("updated_by,updated_at").single();
   if (res.error) return status("No se pudo guardar: " + errMsg(res.error), true);
   r.v[k] = inp.value;
+  marcarEdad(r, tr);
   contadores();
   r.by = byText(res.data);
   tr.title = "Editado por " + r.by;

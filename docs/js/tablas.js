@@ -38,6 +38,8 @@ export var TABLES = {
       { col: "estado", value: "Pendiente", label: "Pendientes" },
       { col: "estado", value: "En proceso", label: "En proceso" },
     ],
+    // Etiqueta "hace N días" en las filas abiertas con más de `dias` días desde su fecha (en rojo desde `urgente`).
+    antiguedad: { fecha: "fecha", estado: "estado", valores: ["Pendiente", "En proceso"], dias: 7, urgente: 15 },
     defaults: function () {
       return { fecha: today(), estado: "Pendiente" };
     },

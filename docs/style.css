@@ -300,3 +300,8 @@ tr.tipo-en{background:#efe6fb}
 /* Buscador de Borradores y Notas */
 .draft-search{width:calc(100% - 16px);margin:0 8px 8px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--fg)}
 .sin-resultados{padding:10px 12px;margin:0}
+
+/* Antigüedad de pendientes */
+.edad{display:inline-block;margin:0 6px 4px;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:600;background:#ffe8a3;color:#5a4300}
+.edad.urgente{background:#e5534b;color:#fff}
+@media (prefers-color-scheme:dark){.edad{background:#6b5410;color:#ffe9a8}.edad.urgente{background:#b3392f}}
