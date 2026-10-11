@@ -3,6 +3,7 @@
 import { $, S, abrirModal, cerrarModal, el, errMsg, sb, status, today } from "./core.js";
 import { leaveGrid } from "./live.js";
 import { borrarFila } from "./papelera.js";
+import { GCAL_URL } from "./tablas.js";
 
 // ---------- Calendario ----------
 // Tabla "eventos" en Supabase (ver supabase/eventos.sql). Un evento = título + fecha + hora opcional + descripción.
@@ -78,7 +79,19 @@ export function openCalendario() {
   cal.y = hoy.getFullYear();
   cal.m = hoy.getMonth();
 
-  $("tools").replaceChildren();
+  $("tools").replaceChildren(
+    el(
+      "a",
+      {
+        class: "btn",
+        href: GCAL_URL,
+        target: "_blank",
+        rel: "noopener noreferrer",
+        title: "Abre Google Calendar (en una pestaña nueva)",
+      },
+      "📅 Abrir Google Calendar",
+    ),
+  );
   $("grid").replaceChildren(
     el(
       "div",

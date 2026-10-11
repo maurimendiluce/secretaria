@@ -11,6 +11,8 @@ export var FORM_URL =
 
 // Carpeta de proyectos en la nube de Exactas (botón en la solapa Notas / Proyectos)
 export var NUBE_URL = "https://nube.exactas.uba.ar/index.php/f/26167782";
+export var GCAL_URL = "https://calendar.google.com/calendar/u/0/r";
+
 
 function C(k, h, type, options, labels) {
   return { k: k, h: h, type: type || "text", options: options || null, optionLabels: labels || null };
