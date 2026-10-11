@@ -13,9 +13,15 @@ export var FORM_URL =
 export var NUBE_URL = "https://nube.exactas.uba.ar/index.php/f/26167782";
 export var GCAL_URL = "https://calendar.google.com/calendar/u/0/r";
 
-
 function C(k, h, type, options, labels) {
   return { k: k, h: h, type: type || "text", options: options || null, optionLabels: labels || null };
+}
+
+// Columna cuyo contenido, si es una dirección web, se muestra con un botón para abrirla.
+function L(k, h) {
+  var c = C(k, h);
+  c.link = true;
+  return c;
 }
 
 // Cada pestaña = una tabla de Supabase (ver supabase/schema.sql). Para sumar una columna: agregarla acá y en el schema.
@@ -99,7 +105,7 @@ export var TABLES = {
   },
   links: {
     label: "Links",
-    cols: [C("nombre", "Nombre"), C("valor", "Valor")],
+    cols: [C("nombre", "Nombre"), L("valor", "Valor")],
     defaults: function () {
       return {};
     },

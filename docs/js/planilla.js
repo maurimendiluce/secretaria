@@ -17,7 +17,7 @@ async function fetchTable(name) {
   return {
     name: name,
     cols: t.cols.map(function (c) {
-      return { h: c.h, i: c.k, type: c.type, options: c.options, optionLabels: c.optionLabels };
+      return { h: c.h, i: c.k, type: c.type, options: c.options, optionLabels: c.optionLabels, link: c.link };
     }),
     rows: r.data.map(function (row) {
       return {
@@ -388,6 +388,14 @@ function colPorClave(k) {
   });
 }
 
+// Devuelve una dirección web usable si el texto parece una (http://, https:// o www.), si no, "".
+function urlDe(texto) {
+  var t = String(texto || "").trim();
+  if (/^www\./i.test(t)) t = "https://" + t;
+  if (!/^https?:\/\/\S+$/i.test(t)) return "";
+  return t;
+}
+
 function rowEl(r) {
   var d = S.data,
     tr = el("tr", { "data-id": r.id, title: r.by ? "Editado por " + r.by : "" });
@@ -414,7 +422,22 @@ function rowEl(r) {
     inp.addEventListener("change", function () {
       save(r, k, c, inp, tr);
     });
-    tr.append(el("td", {}, inp));
+        if (c.link) {
+      var a = el(
+        "a",
+        { class: "linkbtn", target: "_blank", rel: "noopener noreferrer", title: "Abrir el link en una pestaña nueva" },
+        "↗",
+      );
+      var pintar = function () {
+        var u = urlDe(inp.value);
+        a.hidden = !u;
+        if (u) a.href = u;
+        else a.removeAttribute("href");
+      };
+      inp.addEventListener("input", pintar);
+      pintar();
+      tr.append(el("td", { class: "linkcell" }, inp, a));
+    } else tr.append(el("td", {}, inp));
   });
   marcarEdad(r, tr);
   tr.append(
