@@ -18,6 +18,21 @@ var pendingNota = null;
 // { r, titulo, contenido }: lo último escrito que todavía no se guardó
 var notaSyncTimer = null;
 
+var ETIQUETAS = ["Mauri", "Naty"];
+var notaFiltro = ""; // "" = todas, "Mauri", "Naty" o "__sin" (sin etiquetar)
+var notaBusqueda = "";
+
+// Notas que cumplen el filtro de etiqueta y el texto buscado (en título y contenido, sin distinguir tildes ni mayúsculas).
+function notasVisibles() {
+  var q = normalizar(notaBusqueda.trim());
+  return notaRows.filter(function (r) {
+    if (notaFiltro === "__sin" && r.etiqueta) return false;
+    if (notaFiltro && notaFiltro !== "__sin" && r.etiqueta !== notaFiltro) return false;
+    if (!q) return true;
+    return normalizar((r.titulo || "") + "\n" + (r.contenido || "")).indexOf(q) >= 0;
+  });
+}
+
 export async function openNotas() {
   S.tab = "notas";
 
@@ -92,7 +107,9 @@ export async function refrescarNotas() {
   if (cur && i >= 0) {
     var nueva = rows[i];
     if (
-      ((cur.titulo || "") !== (nueva.titulo || "") || (cur.contenido || "") !== (nueva.contenido || "")) &&
+      ((cur.titulo || "") !== (nueva.titulo || "") ||
+        (cur.contenido || "") !== (nueva.contenido || "") ||
+        (cur.etiqueta || "") !== (nueva.etiqueta || "")) &&
       new Date(nueva.updated_at) > new Date(cur.updated_at)
     ) {
       Object.assign(cur, nueva);
@@ -108,7 +125,8 @@ export async function refrescarNotas() {
 
   if (perdida || !cur) {
     notaSel = null;
-    if (rows.length) renderNotaEditor(notaRows, rows[0].id);
+    var vis = notasVisibles();
+    if (vis.length) renderNotaEditor(notaRows, vis[0].id);
     else renderNotasVacio();
     if (perdida) status("Esa nota la eliminó otra persona.", true);
   }
@@ -135,14 +153,22 @@ function pintarCamposNota(r) {
     }
   });
   if ($("note-body")) grow($("note-body"));
+  if ($("note-tag") && $("note-tag").value !== (r.etiqueta || "")) $("note-tag").value = r.etiqueta || "";
 }
 
 function pintarListaNotas() {
   var list = $("nota-list");
   if (!list) return;
+  var visibles = notasVisibles();
+  if (!visibles.length) {
+    list.replaceChildren(
+      el("div", { class: "draft-empty" }, notaRows.length ? "Ninguna nota coincide con la búsqueda." : ""),
+    );
+    return;
+  }
   list.replaceChildren.apply(
     list,
-    notaRows.map(function (r) {
+    visibles.map(function (r) {
       return el(
         "button",
         {
@@ -152,7 +178,12 @@ function pintarListaNotas() {
             cambiarNota(r.id);
           },
         },
-        el("strong", {}, r.titulo || "(Sin título)"),
+        el(
+          "div",
+          { class: "draft-row" },
+          el("strong", {}, r.titulo || "(Sin título)"),
+          r.etiqueta ? el("small", { class: "st-badge tag-" + r.etiqueta }, r.etiqueta) : null,
+        ),
         el("span", {}, r.updated_at ? new Date(r.updated_at).toLocaleString("es-AR") : ""),
       );
     }),
@@ -209,7 +240,38 @@ function renderNotas(rows) {
     ),
   );
 
-  sidebar.append(el("div", { class: "draft-list", id: "nota-list" }));
+  sidebar.append(
+    el("input", {
+      id: "nota-q",
+      class: "draft-filter",
+      type: "search",
+      placeholder: "Buscar en notas...",
+      value: notaBusqueda,
+      oninput: function () {
+        notaBusqueda = this.value;
+        pintarListaNotas();
+      },
+    }),
+    el(
+      "select",
+      {
+        id: "nota-filtro",
+        class: "draft-filter",
+        title: "Filtrar por etiqueta",
+        onchange: function () {
+          notaFiltro = this.value;
+          pintarListaNotas();
+        },
+      },
+      el("option", { value: "" }, "Todas las etiquetas"),
+      ETIQUETAS.map(function (t) {
+        return el("option", { value: t }, t);
+      }),
+      el("option", { value: "__sin" }, "Sin etiquetar"),
+    ),
+    el("div", { class: "draft-list", id: "nota-list" }),
+  );
+
 
   var editor = el("section", {
     class: "draft-editor",
@@ -219,12 +281,14 @@ function renderNotas(rows) {
   layout.append(sidebar, editor);
 
   $("grid").replaceChildren(layout);
+  $("nota-filtro").value = notaFiltro;
 
+  var visibles = notasVisibles();
   var selected =
-    rows.find(function (r) {
+    visibles.find(function (r) {
       return r.id === notaSel;
     }) ||
-    rows[0] ||
+    visibles[0] ||
     null;
   notaSel = selected ? selected.id : null;
   pintarListaNotas();
@@ -345,7 +409,23 @@ function renderNotaEditor(rows, id) {
     ),
   );
 
-  editor.replaceChildren(el("div", { class: "note-header" }, title, saveInfo), body, buttons);
+  var etiqueta = el(
+    "select",
+    {
+      id: "note-tag",
+      title: "Etiqueta",
+      onchange: function () {
+        cambiarEtiqueta(r, this.value);
+      },
+    },
+    el("option", { value: "" }, "Sin etiquetar"),
+    ETIQUETAS.map(function (t) {
+      return el("option", { value: t }, t);
+    }),
+  );
+  etiqueta.value = r.etiqueta || "";
+
+  editor.replaceChildren(el("div", { class: "note-header" }, title, etiqueta, saveInfo), body, buttons);
 
   title.addEventListener("input", function () {
     programarGuardadoNota(r);
@@ -357,6 +437,27 @@ function renderNotaEditor(rows, id) {
   });
 
   grow(body);
+}
+
+// La etiqueta se guarda al instante (no espera el autoguardado del texto).
+async function cambiarEtiqueta(r, valor) {
+  var anterior = r.etiqueta || "";
+  var res = await sb
+    .from("notas")
+    .update({ etiqueta: valor || null })
+    .eq("id", r.id)
+    .select("updated_at, updated_by")
+    .single();
+  if (res.error) {
+    status(errMsg(res.error), true);
+    if ($("note-tag")) $("note-tag").value = anterior;
+    return;
+  }
+  r.etiqueta = valor || null;
+  r.updated_at = res.data.updated_at;
+  r.updated_by = res.data.updated_by;
+  pintarListaNotas();
+  status("Etiqueta guardada");
 }
 
 function programarGuardadoNota(r) {
@@ -422,6 +523,8 @@ async function guardarNota(r, p) {
 
 async function nuevaNota() {
   await flushNotaSave();
+  notaFiltro = ""; // para que la nota nueva no quede oculta por un filtro o una búsqueda
+  notaBusqueda = "";
 
   var res = await sb
     .from("notas")

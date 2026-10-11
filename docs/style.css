@@ -311,3 +311,7 @@ td.linkcell textarea{padding-right:28px}
 .linkbtn{position:absolute;right:6px;top:5px;text-decoration:none;font-weight:700;color:var(--acc);padding:0 4px;border-radius:4px}
 .linkbtn:hover{background:var(--line)}
 .linkbtn[hidden]{display:none}
+
+.st-badge.tag-Mauri{background:var(--tpl)}
+.st-badge.tag-Naty{background:var(--ok)}
+.note-header select{padding:8px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--fg)}
