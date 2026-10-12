@@ -4,7 +4,7 @@ import { openBorradores } from "./js/borradores.js";
 import { openCalendario } from "./js/calendario.js";
 import { actualizarAvisoCopia, avisoCopiaInicial, copiaSeguridad } from "./js/copia.js";
 import { $, S, el, root, sb } from "./js/core.js";
-import { openForm } from "./js/formulario.js";
+import { ocultarForm, openForm } from "./js/formulario.js";
 import { liveOff, unsubscribe } from "./js/live.js";
 import { openNotas } from "./js/notas.js";
 import { abrirPapelera } from "./js/papelera.js";
@@ -79,6 +79,7 @@ function showApp() {
     ),
     el("section", { id: "tools" }),
     el("div", { id: "grid", class: "gridwrap" }),
+    el("div", { id: "form-pane", hidden: "" }),
     el("div", { id: "status", class: "status" }),
   );
   $("tabs").replaceChildren.apply(
@@ -91,6 +92,7 @@ function showApp() {
             class: "tab",
             "data-n": n,
             onclick: function () {
+              ocultarForm();
               open(n);
             },
           },
@@ -115,6 +117,7 @@ function showApp() {
             class: "tab",
             "data-n": "borradores",
             onclick: function () {
+              ocultarForm();
               openBorradores();
             },
           },
@@ -126,6 +129,7 @@ function showApp() {
             class: "tab",
             "data-n": "notas",
             onclick: function () {
+              ocultarForm();
               openNotas();
             },
           },
@@ -137,6 +141,7 @@ function showApp() {
             class: "tab",
             "data-n": "calendario",
             onclick: function () {
+              ocultarForm();
               openCalendario();
             },
           },
