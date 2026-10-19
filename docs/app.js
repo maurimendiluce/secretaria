@@ -5,6 +5,7 @@ import { openCalendario } from "./js/calendario.js";
 import { actualizarAvisoCopia, avisoCopiaInicial, copiaSeguridad } from "./js/copia.js";
 import { $, S, el, root, sb } from "./js/core.js";
 import { ocultarForm, openForm } from "./js/formulario.js";
+import { openLinks } from "./js/links.js";
 import { liveOff, unsubscribe } from "./js/live.js";
 import { openNotas } from "./js/notas.js";
 import { abrirPapelera } from "./js/papelera.js";
@@ -93,7 +94,8 @@ function showApp() {
             "data-n": n,
             onclick: function () {
               ocultarForm();
-              open(n);
+              if (n === "links") openLinks();
+              else open(n);
             },
           },
           TABLES[n].label,
@@ -150,7 +152,7 @@ function showApp() {
       ]),
   );
   actualizarAvisoCopia();
-  var pr = open(S.tab);
+  var pr = S.tab === "links" ? openLinks() : open(S.tab);
   pr.then(avisoCopiaInicial);
   return pr;
 }

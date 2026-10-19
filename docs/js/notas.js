@@ -1,8 +1,10 @@
-// Solapa Notas / Proyectos: notas con autoguardado, descargas y cambios en vivo.
+// Solapa Notas / Proyectos: editor Markdown con vista previa (y LaTeX), etiquetas, buscador, autoguardado,
+// descargas y cambios en vivo.
 
-import { $, S, copiarTexto, descargarArchivo, el, errMsg, grow, normalizar, sb, status } from "./core.js";
+import { $, S, copiarTexto, descargarArchivo, el, errMsg, normalizar, sb, status } from "./core.js";
 import { descargarDocx, descargarOdt } from "./exportar.js";
 import { leaveGrid, liveOn } from "./live.js";
+import { renderMd } from "./markdown.js";
 import { borrarFila } from "./papelera.js";
 import { NUBE_URL } from "./tablas.js";
 
@@ -21,6 +23,8 @@ var notaSyncTimer = null;
 var ETIQUETAS = ["Mauri", "Naty"];
 var notaFiltro = ""; // "" = todas, "Mauri", "Naty" o "__sin" (sin etiquetar)
 var notaBusqueda = "";
+var notaModo = "split"; // "edit" (solo texto) | "split" (texto y vista) | "view" (solo vista)
+var previewTimer = null;
 
 // Notas que cumplen el filtro de etiqueta y el texto buscado (en título y contenido, sin distinguir tildes ni mayúsculas).
 function notasVisibles() {
@@ -152,7 +156,7 @@ function pintarCamposNota(r) {
       }
     }
   });
-  if ($("note-body")) grow($("note-body"));
+  pintarVistaPrevia();
   if ($("note-tag") && $("note-tag").value !== (r.etiqueta || "")) $("note-tag").value = r.etiqueta || "";
 }
 
@@ -162,18 +166,24 @@ function pintarListaNotas() {
   var visibles = notasVisibles();
   if (!visibles.length) {
     list.replaceChildren(
-      el("div", { class: "draft-empty" }, notaRows.length ? "Ninguna nota coincide con la búsqueda." : ""),
+      el("div", { class: "nt-empty" }, notaRows.length ? "Ninguna nota coincide con la búsqueda." : ""),
     );
     return;
   }
   list.replaceChildren.apply(
     list,
     visibles.map(function (r) {
+      var resumen = (r.contenido || "")
+        .replace(/[#*`>$\\-]+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 70);
       return el(
         "button",
         {
-          class: "draft-item" + (r.id === notaSel ? " on" : ""),
+          class: "nt-item" + (r.id === notaSel ? " on" : ""),
           "data-id": r.id,
+          title: r.updated_at ? "Modificada: " + new Date(r.updated_at).toLocaleString("es-AR") : "",
           onclick: function () {
             cambiarNota(r.id);
           },
@@ -181,10 +191,10 @@ function pintarListaNotas() {
         el(
           "div",
           { class: "draft-row" },
-          el("strong", {}, r.titulo || "(Sin título)"),
+          el("strong", { class: "nt-title" }, r.titulo || "(Sin título)"),
           r.etiqueta ? el("small", { class: "st-badge tag-" + r.etiqueta }, r.etiqueta) : null,
         ),
-        el("span", {}, r.updated_at ? new Date(r.updated_at).toLocaleString("es-AR") : ""),
+        el("span", { class: "nt-snip" }, resumen || "Vacía"),
       );
     }),
   );
@@ -201,7 +211,7 @@ function renderNotasVacio() {
   editor.replaceChildren(
     el(
       "div",
-      { class: "draft-empty" },
+      { class: "nt-empty" },
       "No hay notas todavía.",
       el(
         "button",
@@ -219,15 +229,25 @@ function renderNotasVacio() {
 function renderNotas(rows) {
   notaRows = rows;
 
-  var layout = el("div", { class: "draft-layout" });
+  var layout = el("div", { class: "nt-layout" });
 
-  var sidebar = el("aside", { class: "draft-sidebar" });
+  var sidebar = el("aside", { class: "nt-side" });
 
   sidebar.append(
     el(
       "div",
-      { class: "draft-sidebar-head" },
-      el("strong", {}, "Notas / Proyectos"),
+      { class: "nt-side-top" },
+      el("input", {
+        id: "nota-q",
+        type: "search",
+        placeholder: "Buscar en notas...",
+        "aria-label": "Buscar en notas",
+        value: notaBusqueda,
+        oninput: function () {
+          notaBusqueda = this.value;
+          pintarListaNotas();
+        },
+      }),
       el(
         "button",
         {
@@ -238,25 +258,11 @@ function renderNotas(rows) {
         "+ Nueva",
       ),
     ),
-  );
-
-  sidebar.append(
-    el("input", {
-      id: "nota-q",
-      class: "draft-filter",
-      type: "search",
-      placeholder: "Buscar en notas...",
-      value: notaBusqueda,
-      oninput: function () {
-        notaBusqueda = this.value;
-        pintarListaNotas();
-      },
-    }),
     el(
       "select",
       {
         id: "nota-filtro",
-        class: "draft-filter",
+        class: "nt-filter",
         title: "Filtrar por etiqueta",
         onchange: function () {
           notaFiltro = this.value;
@@ -269,12 +275,11 @@ function renderNotas(rows) {
       }),
       el("option", { value: "__sin" }, "Sin etiquetar"),
     ),
-    el("div", { class: "draft-list", id: "nota-list" }),
+    el("div", { class: "nt-list", id: "nota-list" }),
   );
 
-
   var editor = el("section", {
-    class: "draft-editor",
+    class: "nt-main",
     id: "nota-editor",
   });
 
@@ -318,15 +323,22 @@ function renderNotaEditor(rows, id) {
     id: "note-title",
     type: "text",
     placeholder: "Título de la nota o proyecto",
+    "aria-label": "Título",
     value: r.titulo || "",
   });
 
   var body = el("textarea", {
     id: "note-body",
-    placeholder: "Escribí acá la nota, ideas, información del proyecto, etc.",
+    class: "nt-editor",
+    spellcheck: "false",
+    "aria-label": "Contenido de la nota",
+    placeholder:
+      "Escribí en Markdown… (# títulos, **negrita**, listas, `código`) y LaTeX: $\\nabla u = f$ o $$\\int_\\Omega u\\,v\\,dx$$",
   });
 
   body.value = r.contenido || "";
+
+  var vista = el("article", { id: "note-preview", class: "md nt-preview" });
 
   var saveInfo = el(
     "span",
@@ -336,6 +348,65 @@ function renderNotaEditor(rows, id) {
     },
     "Guardado",
   );
+
+  var modos = el(
+    "div",
+    { class: "seg", id: "note-mode", role: "group", "aria-label": "Modo" },
+    [
+      ["edit", "Editar"],
+      ["split", "Ambos"],
+      ["view", "Vista"],
+    ].map(function (m) {
+      return el(
+        "button",
+        {
+          type: "button",
+          "data-v": m[0],
+          onclick: function () {
+            notaModo = m[0];
+            aplicarModo();
+          },
+        },
+        m[1],
+      );
+    }),
+  );
+
+  var herramientas = el(
+    "div",
+    { class: "md-tools", id: "md-tools", role: "toolbar", "aria-label": "Formato" },
+    [
+      ["**", "**", "negrita", "Negrita", el("b", {}, "B")],
+      ["*", "*", "cursiva", "Cursiva", el("i", {}, "I")],
+      ["`", "`", "código", "Código en línea", "</>"],
+      ["$", "$", "x^2", "Fórmula en línea: $…$", "$x$"],
+      ["\n$$\n", "\n$$\n", "\\int_0^1 f(x)\\,dx", "Fórmula en bloque: $$…$$", "$$"],
+    ]
+      .map(function (h) {
+        return el(
+          "button",
+          {
+            type: "button",
+            title: h[3],
+            onclick: function () {
+              envolverSeleccion(h[0], h[1], h[2]);
+            },
+          },
+          h[4],
+        );
+      })
+      .concat([
+        el("span", { class: "nt-hint" }, [
+          "LaTeX: ",
+          el("code", {}, "$x^2$"),
+          " en línea, ",
+          el("code", {}, "$$…$$"),
+          " en bloque",
+        ]),
+      ]),
+  );
+
+  var cuerpo = el("div", { class: "nt-body", id: "note-cols" }, body, vista);
 
   var buttons = el(
     "div",
@@ -425,18 +496,62 @@ function renderNotaEditor(rows, id) {
   );
   etiqueta.value = r.etiqueta || "";
 
-  editor.replaceChildren(el("div", { class: "note-header" }, title, etiqueta, saveInfo), body, buttons);
+  editor.replaceChildren(
+    el("div", { class: "note-header" }, title, etiqueta, modos, saveInfo),
+    herramientas,
+    cuerpo,
+    buttons,
+  );
+  aplicarModo();
+  pintarVistaPrevia();
 
   title.addEventListener("input", function () {
     programarGuardadoNota(r);
   });
 
   body.addEventListener("input", function () {
-    grow(body);
     programarGuardadoNota(r);
+    clearTimeout(previewTimer);
+    previewTimer = setTimeout(pintarVistaPrevia, 120);
   });
 
-  grow(body);
+  // Tab escribe 2 espacios (Shift+Tab sigue moviendo el foco)
+  body.addEventListener("keydown", function (ev) {
+    if (ev.key === "Tab" && !ev.shiftKey && !ev.ctrlKey && !ev.altKey && !ev.metaKey) {
+      ev.preventDefault();
+      body.setRangeText("  ", body.selectionStart, body.selectionEnd, "end");
+      body.dispatchEvent(new Event("input"));
+    }
+  });
+}
+
+function aplicarModo() {
+  var c = $("note-cols");
+  if (c) c.dataset.mode = notaModo;
+  var h = $("md-tools");
+  if (h) h.hidden = notaModo === "view";
+  document.querySelectorAll("#note-mode button").forEach(function (b) {
+    b.classList.toggle("on", b.dataset.v === notaModo);
+  });
+}
+
+function pintarVistaPrevia() {
+  var v = $("note-preview"),
+    b = $("note-body");
+  if (v && b) renderMd(b.value, v);
+}
+
+// Pone el texto marcado entre `pre` y `post` (o `ph` si no hay nada marcado).
+function envolverSeleccion(pre, post, ph) {
+  var ta = $("note-body");
+  if (!ta) return;
+  var s = ta.selectionStart,
+    e = ta.selectionEnd;
+  var sel = ta.value.slice(s, e) || ph;
+  ta.setRangeText(pre + sel + post, s, e, "end");
+  ta.focus();
+  ta.setSelectionRange(s + pre.length, s + pre.length + sel.length);
+  ta.dispatchEvent(new Event("input"));
 }
 
 // La etiqueta se guarda al instante (no espera el autoguardado del texto).
