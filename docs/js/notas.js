@@ -1,4 +1,4 @@
-// Solapa Notas / Proyectos: editor Markdown con vista previa (y LaTeX), etiquetas, buscador, autoguardado,
+// Solapa Notas / Proyectos: editor Markdown con vista previa, etiquetas, buscador, autoguardado,
 // descargas y cambios en vivo.
 
 import { $, S, copiarTexto, descargarArchivo, el, errMsg, normalizar, sb, status } from "./core.js";
@@ -174,7 +174,7 @@ function pintarListaNotas() {
     list,
     visibles.map(function (r) {
       var resumen = (r.contenido || "")
-        .replace(/[#*`>$\\-]+/g, " ")
+        .replace(/[#*`>\\-]+/g, " ")
         .replace(/\s+/g, " ")
         .trim()
         .slice(0, 70);
@@ -333,7 +333,7 @@ function renderNotaEditor(rows, id) {
     spellcheck: "false",
     "aria-label": "Contenido de la nota",
     placeholder:
-      "Escribí en Markdown… (# títulos, **negrita**, listas, `código`) y LaTeX: $\\nabla u = f$ o $$\\int_\\Omega u\\,v\\,dx$$",
+      "Escribí en Markdown… (# títulos, **negrita**, *cursiva*, listas, `código`, [texto](https://…))",
   });
 
   body.value = r.contenido || "";
@@ -379,8 +379,6 @@ function renderNotaEditor(rows, id) {
       ["**", "**", "negrita", "Negrita", el("b", {}, "B")],
       ["*", "*", "cursiva", "Cursiva", el("i", {}, "I")],
       ["`", "`", "código", "Código en línea", "</>"],
-      ["$", "$", "x^2", "Fórmula en línea: $…$", "$x$"],
-      ["\n$$\n", "\n$$\n", "\\int_0^1 f(x)\\,dx", "Fórmula en bloque: $$…$$", "$$"],
     ]
       .map(function (h) {
         return el(
@@ -395,15 +393,6 @@ function renderNotaEditor(rows, id) {
           h[4],
         );
       })
-      .concat([
-        el("span", { class: "nt-hint" }, [
-          "LaTeX: ",
-          el("code", {}, "$x^2$"),
-          " en línea, ",
-          el("code", {}, "$$…$$"),
-          " en bloque",
-        ]),
-      ]),
   );
 
   var cuerpo = el("div", { class: "nt-body", id: "note-cols" }, body, vista);
