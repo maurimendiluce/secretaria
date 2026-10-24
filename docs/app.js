@@ -22,7 +22,7 @@ function showLogin(msg) {
       "form",
       { class: "login", onsubmit: onLogin },
       el("img", { class: "logo-login", src: "logo.png", alt: "Secretaría de Concursos" }),
-      el("h1", {}, "Secretaría de Concursos"),
+      //el("h1", {}, "Secretaría de Concursos"),
       el(
         "label",
         {},
