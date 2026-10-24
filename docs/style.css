@@ -390,3 +390,8 @@ a.lk-main:hover .lk-title{color:var(--acc);text-decoration:underline}
   .nt-body{grid-template-columns:1fr!important}
   .lk-form{grid-template-columns:1fr}
 }
+
+/* Logo */
+.logo-bar{height:52px;width:52px;display:block;flex:none}
+.logo-login{width:120px;height:120px;display:block;margin:0 auto -4px}
+.login h1{text-align:center;font-size:22px}

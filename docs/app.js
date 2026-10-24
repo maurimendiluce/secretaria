@@ -21,7 +21,8 @@ function showLogin(msg) {
     el(
       "form",
       { class: "login", onsubmit: onLogin },
-      el("h1", {}, "Gestión de Secretaría"),
+      el("img", { class: "logo-login", src: "logo.png", alt: "Secretaría de Concursos" }),
+      el("h1", {}, "Secretaría de Concursos"),
       el(
         "label",
         {},
@@ -53,7 +54,7 @@ function showApp() {
     el(
       "header",
       { class: "bar" },
-      el("h1", {}, "Gestión de Secretaría"),
+      el("img", { class: "logo-bar", src: "logo.png", alt: "Secretaría de Concursos", title: "Secretaría de Concursos" }),
       el("nav", { id: "tabs" }),
       el("span", { class: "bk-info", id: "bk-info" }),
       el(
