@@ -1,6 +1,6 @@
 // Solapa Calendario: mes, eventos (tabla "eventos"), alta/edición/baja y cambios en vivo.
 
-import { $, S, abrirModal, cerrarModal, el, errMsg, sb, status, today } from "./core.js";
+import { $, S, abrirModal, cerrarModal, copiarTexto, el, errMsg, sb, status, today } from "./core.js";
 import { leaveGrid } from "./live.js";
 import { borrarFila } from "./papelera.js";
 import { GCAL_URL } from "./tablas.js";
@@ -67,6 +67,110 @@ function urlGoogleCalendar(titulo, fecha, hora, descripcion, persona) {
   return "https://calendar.google.com/calendar/render?" + q.toString();
 }
 
+// ---------- Compartir todo el calendario con Google Calendar ----------
+// Una función de Supabase ("calendario-ics", ver supabase/functions) publica los eventos como calendario
+// de suscripción. La dirección lleva un token secreto, guardado en la tabla "calendario_feed".
+var FEED_FUNCION = "calendario-ics";
+
+function tokenNuevo() {
+  var b = new Uint8Array(24);
+  crypto.getRandomValues(b);
+  return Array.from(b, function (x) {
+    return x.toString(16).padStart(2, "0");
+  }).join("");
+}
+
+function urlFeed(token) {
+  var base = ((window.SEGUIMIENTO_CONFIG || {}).SUPABASE_URL || "").replace(/\/+$/, "");
+  return base + "/functions/v1/" + FEED_FUNCION + "?token=" + token;
+}
+
+// Devuelve { token } (lo crea la primera vez) o { error }.
+async function obtenerToken() {
+  var r = await sb.from("calendario_feed").select("token").eq("id", 1).maybeSingle();
+  if (r.error) return { error: r.error };
+  if (r.data && r.data.token) return { token: r.data.token };
+  var t = tokenNuevo();
+  var i = await sb.from("calendario_feed").insert({ id: 1, token: t });
+  if (i.error) return { error: i.error };
+  return { token: t };
+}
+
+async function compartirConGoogle() {
+  status("Preparando el link…");
+  var r = await obtenerToken();
+  status("");
+  if (r.error) {
+    var falta = r.error.code === "42P01" || /calendario_feed/.test(r.error.message || "");
+    abrirModal([
+      el("h3", {}, "Compartir con Google Calendar"),
+      el(
+        "p",
+        { class: "err" },
+        falta
+          ? "Falta crear la tabla en Supabase: ejecutá supabase/calendario_feed.sql en el SQL Editor y probá de nuevo."
+          : "No se pudo preparar el link: " + errMsg(r.error),
+      ),
+      el("div", { class: "modal-actions" }, el("span", { class: "spacer" }), el("button", { onclick: cerrarModal }, "Cerrar")),
+    ]);
+    return;
+  }
+
+  var token = r.token;
+  var campo = el("input", { class: "feed-url", readonly: "", value: urlFeed(token), "aria-label": "Link del calendario" });
+  var aviso = el("span", { class: "draft-info" }, "");
+
+  async function copiar() {
+    campo.select();
+    var ok = await copiarTexto(campo.value);
+    aviso.textContent = ok ? "Link copiado ✓" : "No se pudo copiar: seleccionalo y usá Ctrl+C.";
+  }
+
+  async function regenerar() {
+    if (!confirm("Se crea un link nuevo y el anterior deja de funcionar: tendrías que volver a agregar el calendario en Google. ¿Seguir?")) return;
+    var t = tokenNuevo();
+    var u = await sb.from("calendario_feed").update({ token: t }).eq("id", 1);
+    if (u.error) {
+      aviso.textContent = "No se pudo: " + errMsg(u.error);
+      return;
+    }
+    token = t;
+    campo.value = urlFeed(t);
+    aviso.textContent = "Link nuevo creado. El anterior ya no funciona.";
+  }
+
+  abrirModal(
+    [
+      el("h3", {}, "Compartir con Google Calendar"),
+      el(
+        "p",
+        { class: "feed-ayuda" },
+        "Todos los eventos de esta app van a aparecer en tu Google Calendar como un calendario aparte, con un solo color. Se hace una sola vez:",
+      ),
+      el("ol", { class: "feed-pasos" }, [
+        el("li", {}, "Copiá este link:"),
+        el("li", {}, "En Google Calendar (desde la computadora), a la izquierda: Otros calendarios → + → Desde URL."),
+        el("li", {}, "Pegá el link y tocá Agregar calendario."),
+        el("li", {}, "Para elegir el color: pasá el mouse por “Secretaría de Concursos” → ⋮ → elegí un color."),
+      ]),
+      el("div", { class: "feed-row" }, campo, el("button", { onclick: copiar }, "Copiar")),
+      el(
+        "p",
+        { class: "feed-nota" },
+        "Google actualiza los calendarios por link cada tantas horas (puede tardar hasta un día): un evento nuevo o modificado no aparece al instante. Es solo lectura: lo que cambies en Google no vuelve a la app. Cualquiera que tenga este link puede ver los eventos, así que no lo compartas; si se filtra, generá uno nuevo.",
+      ),
+      el(
+        "div",
+        { class: "modal-actions" },
+        aviso,
+        el("button", { class: "ghost", onclick: regenerar }, "Generar link nuevo"),
+        el("button", { onclick: cerrarModal }, "Cerrar"),
+      ),
+    ],
+    "wide",
+  );
+}
+
 function horaCorta(h) {
   return h ? String(h).slice(0, 5) : "";
 }
@@ -116,6 +220,15 @@ export function openCalendario() {
         title: "Abre Google Calendar (en una pestaña nueva)",
       },
       "📅 Abrir Google Calendar",
+    ),
+    el(
+      "button",
+      {
+        class: "ghost",
+        title: "Muestra todos los eventos de esta app dentro de tu Google Calendar",
+        onclick: compartirConGoogle,
+      },
+      "🔗 Compartir con Google Calendar",
     ),
   );
   $("grid").replaceChildren(

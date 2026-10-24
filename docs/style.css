@@ -395,3 +395,11 @@ a.lk-main:hover .lk-title{color:var(--acc);text-decoration:underline}
 .logo-bar{height:52px;width:52px;display:block;flex:none}
 .logo-login{width:120px;height:120px;display:block;margin:0 auto -4px}
 .login h1{text-align:center;font-size:22px}
+
+/*integracion con calendar */
+.gcal-btn{align-self:flex-start;margin-top:10px}
+.feed-row{display:flex;gap:8px;margin:8px 0}
+.feed-url{flex:1;min-width:0;font-size:12px}
+.feed-pasos{margin:6px 0;padding-left:20px;display:flex;flex-direction:column;gap:4px}
+.feed-ayuda,.feed-nota{margin:4px 0}
+.feed-nota{color:var(--mut);font-size:12px}
