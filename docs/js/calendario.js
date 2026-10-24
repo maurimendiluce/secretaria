@@ -41,6 +41,32 @@ function parseISO(s) {
   return new Date(+p[0], +p[1] - 1, +p[2]);
 }
 
+// Dirección para agregar un evento a Google Calendar (se abre con los datos ya cargados; ahí se confirma).
+// Con hora dura 1 hora; sin hora es un evento de todo el día.
+function urlGoogleCalendar(titulo, fecha, hora, descripcion, persona) {
+  function ymd(d) {
+    return d.getFullYear() + pad2(d.getMonth() + 1) + pad2(d.getDate());
+  }
+  var d = parseISO(fecha),
+    fechas;
+  if (hora) {
+    var hh = hora.slice(0, 5).split(":");
+    var ini = new Date(d.getFullYear(), d.getMonth(), d.getDate(), +hh[0], +hh[1]);
+    var fin = new Date(ini.getTime() + 60 * 60 * 1000);
+    var t = function (x) {
+      return ymd(x) + "T" + pad2(x.getHours()) + pad2(x.getMinutes()) + "00";
+    };
+    fechas = t(ini) + "/" + t(fin);
+  } else {
+    var sig = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
+    fechas = ymd(d) + "/" + ymd(sig);
+  }
+  var detalle = [descripcion || "", persona ? "Para: " + persona : ""].filter(Boolean).join("\n\n");
+  var q = new URLSearchParams({ action: "TEMPLATE", text: titulo, dates: fechas, ctz: "America/Argentina/Buenos_Aires" });
+  if (detalle) q.set("details", detalle);
+  return "https://calendar.google.com/calendar/render?" + q.toString();
+}
+
 function horaCorta(h) {
   return h ? String(h).slice(0, 5) : "";
 }
@@ -472,6 +498,28 @@ function editarEvento(e, fecha) {
     loadCalendario();
   }
 
+  // Abre Google Calendar con el evento cargado (usa lo que está en el formulario, aunque no se haya guardado).
+  function agregarAGoogle() {
+    if (!inT.value.trim()) {
+      err.textContent = "Falta el título.";
+      inT.focus();
+      return;
+    }
+    if (!inF.value) {
+      err.textContent = "Falta la fecha.";
+      return;
+    }
+    err.textContent = "";
+    var a = el("a", {
+      href: urlGoogleCalendar(inT.value.trim(), inF.value, inH.value, inD.value.trim(), inP.value),
+      target: "_blank",
+      rel: "noopener noreferrer",
+    });
+    document.body.append(a);
+    a.click(); // un enlace con clic no lo frena el bloqueador de ventanas
+    a.remove();
+  }
+
   [inT, inF, inH].forEach(function (i) {
     i.addEventListener("keydown", function (ev) {
       if (ev.key === "Enter") guardar();
@@ -492,6 +540,16 @@ function editarEvento(e, fecha) {
     colores,
     el("label", {}, "Descripción"),
     inD,
+    el(
+      "button",
+      {
+        type: "button",
+        class: "ghost gcal-btn",
+        title: "Abre Google Calendar con este evento para agregarlo a tu calendario",
+        onclick: agregarAGoogle,
+      },
+      "📅 Agregar a Google Calendar",
+    ),
     err,
     el(
       "div",
