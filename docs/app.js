@@ -44,8 +44,27 @@ function showLogin(msg) {
 async function onLogin(ev) {
   ev.preventDefault();
   var f = ev.target;
-  var r = await sb.auth.signInWithPassword({ email: f.email.value.trim(), password: f.password.value });
-  if (r.error) $("login-err").textContent = "Email o contraseña incorrectos.";
+  var err = $("login-err");
+  var btn = f.querySelector("button[type=submit], button:not([type])");
+  err.textContent = "";
+  if (btn) { btn.disabled = true; btn.dataset.txt = btn.textContent; btn.textContent = "Entrando…"; }
+  try {
+    var r = await sb.auth.signInWithPassword({ email: f.email.value.trim(), password: f.password.value });
+    if (r.error) {
+      var e = r.error, msg = String(e.message || "");
+      if (e.code === "invalid_credentials" || /invalid login credentials/i.test(msg)) {
+        err.textContent = "Email o contraseña incorrectos.";
+      } else if (e.name === "AuthRetryableFetchError" || e.status === 0 || /fetch|network|timeout/i.test(msg)) {
+        err.textContent = "No se pudo conectar con el servidor. Revisá tu conexión o probá desde otra red.";
+      } else {
+        err.textContent = "No se pudo iniciar sesión: " + msg;
+      }
+    }
+  } catch (x) {
+    err.textContent = "No se pudo conectar con el servidor. Revisá tu conexión o probá desde otra red.";
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = btn.dataset.txt || "Entrar"; }
+  }
 }
 
 // ---------- Estructura ----------
