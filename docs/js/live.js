@@ -13,16 +13,19 @@ export function liveOff() {
   }
 }
 
+// `table` puede ser una tabla o una lista de tablas: cualquier cambio en alguna dispara `fn`.
 export function liveOn(tab, table, fn) {
   liveOff();
-  live.ch = sb
-    .channel("rt-live-" + table)
-    .on("postgres_changes", { event: "*", schema: "public", table: table }, function () {
+  var tablas = [].concat(table);
+  var ch = sb.channel("rt-live-" + tablas.join("-"));
+  tablas.forEach(function (t) {
+    ch = ch.on("postgres_changes", { event: "*", schema: "public", table: t }, function () {
       if (S.tab !== tab) return;
       clearTimeout(live.timer);
       live.timer = setTimeout(fn, 400);
-    })
-    .subscribe();
+    });
+  });
+  live.ch = ch.subscribe();
 }
 
 // Deja la pestaña sin refresco de tabla (Borradores, Notas, Calendario, Formulario no usan la grilla).

@@ -403,3 +403,25 @@ a.lk-main:hover .lk-title{color:var(--acc);text-decoration:underline}
 .feed-pasos{margin:6px 0;padding-left:20px;display:flex;flex-direction:column;gap:4px}
 .feed-ayuda,.feed-nota{margin:4px 0}
 .feed-nota{color:var(--mut);font-size:12px}
+
+/* Notas: sugerencias (control de cambios) */
+.sug-badge{background:#ffe8a3;color:#5a4300}
+.sug-banner{display:flex;flex-direction:column;gap:6px;padding:10px 12px;margin:6px 0;border:1px solid var(--line);border-left:4px solid var(--acc);border-radius:8px;background:var(--card)}
+.sug-banner .sug-txt{font-size:13px}
+.sug-banner input{width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--fg)}
+.sug-acts{display:flex;gap:8px;flex-wrap:wrap}
+.sug-panel{margin:6px 0;padding:10px 12px;border:1px solid var(--line);border-left:4px solid #e0a800;border-radius:8px;background:var(--card);max-height:45vh;overflow:auto}
+.sug-panel[hidden]{display:none}
+.sug-panel h4{margin:0 0 8px;font-size:14px}
+.sug-card{display:flex;flex-direction:column;gap:6px;padding:8px 0;border-top:1px solid var(--line)}
+.sug-panel .sug-card:first-of-type{border-top:0}
+.sug-head{display:flex;justify-content:space-between;gap:8px;align-items:baseline;flex-wrap:wrap}
+.sug-head small{color:var(--mut);font-size:12px}
+.sug-com{font-style:italic;color:var(--mut);font-size:13px}
+.sug-aviso{font-size:12px;color:#8a5a00;background:#fff3d6;border-radius:6px;padding:4px 8px}
+.sug-lbl{font-size:11px;font-weight:600;color:var(--mut);text-transform:uppercase;letter-spacing:.04em}
+.df{white-space:pre-wrap;word-break:break-word;font-size:13px;line-height:1.5;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);max-height:220px;overflow:auto}
+.df-vacio{color:var(--mut);font-style:italic}
+.df-ins{background:rgba(46,160,67,.28);text-decoration:none;border-radius:2px}
+.df-del{background:rgba(220,53,69,.25);text-decoration:line-through;border-radius:2px}
+@media (prefers-color-scheme:dark){.sug-aviso{background:#3d3519;color:#f1d58a}.sug-badge{background:#3d3519;color:#f1d58a}}
