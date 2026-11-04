@@ -4,6 +4,7 @@ import { $, S, byText, el, errMsg, fmtDate, grow, sb, status, today } from "./co
 import { liveOff, unsubscribe } from "./live.js";
 import { borrarFila } from "./papelera.js";
 import { TABLES } from "./tablas.js";
+import { crearVacaciones, vacHoy, vacTexto } from "./vacaciones.js";
 
 function inGrid() {
   var a = document.activeElement;
@@ -396,6 +397,13 @@ function urlDe(texto) {
   return t;
 }
 
+// Fila de una persona que hoy está de vacaciones: se pinta de otro color.
+function marcarAusente(r, tr) {
+  var i = colIdx("vacaciones");
+  var ya = i >= 0 ? vacHoy(r.v[i]) : null;
+  tr.classList.toggle("vac-ahora", !!ya);
+}
+
 function rowEl(r) {
   var d = S.data,
     tr = el("tr", { "data-id": r.id, title: r.by ? "Editado por " + r.by : "" });
@@ -405,6 +413,16 @@ function rowEl(r) {
   if (ti >= 0 && r.v[ti]) tr.className = "tipo-" + r.v[ti];
   d.cols.forEach(function (c, k) {
     var inp;
+    if (c.type === "vacaciones") {
+      // Vacaciones: períodos elegidos con calendario (ver vacaciones.js)
+      var vw = crearVacaciones(r.v[k], async function (nuevo) {
+        await save(r, k, c, { value: nuevo }, tr);
+        vw.set(r.v[k]);
+        marcarAusente(r, tr);
+      });
+      tr.append(el("td", { class: "vaccell" }, vw.el));
+      return;
+    }
     if (c.type === "select") {
       inp = el("select", {}, el("option", { value: "" }, ""));
       c.options.forEach(function (o) {
@@ -440,6 +458,7 @@ function rowEl(r) {
     } else tr.append(el("td", {}, inp));
   });
   marcarEdad(r, tr);
+  marcarAusente(r, tr);
   tr.append(
     el(
       "td",
@@ -572,7 +591,13 @@ async function exportXlsx() {
           .concat(["Editado"]),
       ];
       d.rows.forEach(function (r) {
-        aoa.push(r.v.concat([r.by]));
+        aoa.push(
+          r.v
+            .map(function (v, i) {
+              return d.cols[i].type === "vacaciones" ? vacTexto(v) : v;
+            })
+            .concat([r.by]),
+        );
       });
       XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), TABLES[name].label.slice(0, 31));
     }

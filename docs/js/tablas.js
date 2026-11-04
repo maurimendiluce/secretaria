@@ -89,8 +89,8 @@ export var TABLES = {
       C("funcion", "Función"),
       C("contacto", "Contacto"),
       C("horario", "Horario"),
-      C("home", "Home"),
-      C("vacaciones", "Vacaciones"),
+      C("home", "Home", "select", ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"]),
+      C("vacaciones", "Vacaciones", "vacaciones"),
     ],
     defaults: function () {
       return {};
