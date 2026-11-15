@@ -1,5 +1,6 @@
 // Solapa Comisión: los temas se agrupan por reunión (tablas "comisiones_fechas" y "comision").
-//  - Carga rápida arriba: se escribe una categoría y/o un tema, Enter, y queda en la comisión elegida (por defecto la próxima).
+//  - Carga rápida arriba: el campo grande es la Categoría (se elige de la lista o se escribe una nueva); con Enter queda anotada en la
+//    comisión elegida (por defecto la próxima) y el cursor pasa a la observación de la fila nueva.
 //  - Categorías prefijadas (tabla "comision_categorias"): se eligen de la lista, se crean escribiéndolas o con «Nueva categoría…»
 //    y se renombran o borran desde el botón «Categorías».
 //  - Cada comisión es un bloque: "Para tratar" (tipo para) y "Anotado en la comisión" (tipo en).
@@ -26,7 +27,7 @@ var filtroEstado = null;
 var verArchivo = false; // false: comisiones activas; true: el archivo
 var abiertos = {}; // bloque -> abierto o cerrado, según lo que eligió la persona
 var pendiente = false;
-var selTipo, selSesion, inCat, inExpte, inObs, listaCats, btnArchivo, btnPasadas;
+var selTipo, selSesion, inCat, inExpte, listaCats, btnArchivo, btnPasadas;
 
 // ---------- Fechas ----------
 function diaSemana(f) {
@@ -442,30 +443,23 @@ function armarHerramientas() {
     },
   });
   listaCats = el("datalist", { id: "cm-cats" });
+  inExpte = el("input", { placeholder: "Expte. (opcional)", maxlength: "200", "aria-label": "Expediente", class: "cm-expte" });
   inCat = el("input", {
-    placeholder: "Categoría…",
+    placeholder: "Categoría: elegí de la lista o escribí una nueva (Enter para agregar)",
     maxlength: "80",
     "aria-label": "Categoría",
-    title: "Elegí una de la lista o escribí una nueva (se agrega a la lista)",
-    class: "cm-cat-in",
-    list: "cm-cats",
-  });
-  inExpte = el("input", { placeholder: "Expte.", maxlength: "200", "aria-label": "Expediente", class: "cm-expte" });
-  inObs = el("input", {
-    placeholder: "Tema u observación (Enter para agregar)",
-    maxlength: "2000",
-    "aria-label": "Tema u observación",
+    title: "Se elige de la lista (flecha del campo) o se escribe una nueva. Después se completa la observación en la fila.",
     class: "cm-obs-in",
+    list: "cm-cats",
   });
   var form = el(
     "form",
     { class: "cm-quick", autocomplete: "off", onsubmit: agregarRapida },
     selTipo,
     selSesion,
+    inExpte,
     inCat,
     listaCats,
-    inExpte,
-    inObs,
     el("button", { type: "submit" }, "Agregar"),
   );
   var buscar = el("input", {
@@ -531,23 +525,20 @@ function llenarSesiones(reset) {
 
 async function agregarRapida(ev) {
   ev.preventDefault();
-  var cat = inCat.value.trim(),
-    obs = inObs.value.trim();
-  if (!cat && !obs) return inCat.focus();
-  var categoria = null;
-  if (cat) {
-    var c = await asegurarCategoria(cat);
-    if (c.error) return status("No se pudo crear la categoría: " + errMsg(c.error), true);
-    categoria = c.nombre;
-    if (c.creada) llenarCategorias();
-  }
+  var cat = inCat.value.trim().replace(/\s+/g, " ");
+  if (!cat) return inCat.focus();
+  // Una categoría que no está en la lista se crea solo si la persona lo confirma (así un error de tipeo no ensucia la lista).
+  if (!categoriaExistente(cat) && !confirm("«" + cat + "» no está en la lista de categorías.\n\n¿Crearla y anotar el tema?")) return inCat.focus();
+  var c = await asegurarCategoria(cat);
+  if (c.error) return status("No se pudo crear la categoría: " + errMsg(c.error), true);
+  if (c.creada) llenarCategorias();
   var tipo = selTipo.value,
     fila = {
       fecha: selSesion.value || null,
       tipo: tipo,
-      categoria: categoria,
+      categoria: c.nombre,
       expediente: inExpte.value.trim() || null,
-      observacion: obs || null,
+      observacion: null,
       estado: tipo === "para" ? "Pendiente" : null,
     };
   status("Agregando…");
@@ -556,16 +547,12 @@ async function agregarRapida(ev) {
   notas.push(r.data);
   inCat.value = "";
   inExpte.value = "";
-  inObs.value = "";
   abiertos[fila.fecha || "sin"] = true;
   pintar();
-  avisar("Agregado ✓" + (categoria ? " en " + categoria : ""));
-  if (!obs) {
-    // solo se escribió la categoría: el cursor pasa a la observación de la fila nueva
-    var ta = document.querySelector('tr[data-id="' + r.data.id + '"] td.cm-obs textarea');
-    if (ta) return ta.focus();
-  }
-  inCat.focus();
+  avisar("Agregado en " + c.nombre + " ✓");
+  // el cursor pasa a la observación de la fila nueva para escribir el detalle
+  var ta = document.querySelector('tr[data-id="' + r.data.id + '"] td.cm-obs textarea');
+  if (ta) ta.focus();
 }
 
 function avisar(msg) {

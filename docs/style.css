@@ -487,7 +487,6 @@ td.cm-act button{padding:2px 8px;font-size:12px}
 .cm-tarea-ok{color:var(--acc)}
 
 /* Comisión: categorías y archivo */
-.cm-quick .cm-cat-in{width:170px}
 td.cm-cat select{min-width:140px}
 .cm-cat-row{display:flex;align-items:center;gap:8px;margin:4px 0}
 .cm-cat-row input{flex:1}
