@@ -399,7 +399,7 @@ function urlDe(texto) {
 
 // Fila de una persona que hoy está de vacaciones: se pinta de otro color.
 function marcarAusente(r, tr) {
-  var i = colIdx("vacaciones");
+  var i = colPorClave("vacaciones");
   var ya = i >= 0 ? vacHoy(r.v[i]) : null;
   tr.classList.toggle("vac-ahora", !!ya);
 }

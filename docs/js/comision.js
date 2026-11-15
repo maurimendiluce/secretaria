@@ -432,7 +432,7 @@ function armarHerramientas() {
         llenarSesiones(true);
       },
     },
-    el("option", { value: "para" }, "Para comisión"),
+    el("option", { value: "para" }, "Para tratar"),
     el("option", { value: "en" }, "En comisión"),
   );
   selSesion = el("select", {
@@ -1384,7 +1384,7 @@ function exportarXlsx() {
     .forEach(function (n) {
       filas.push([
         n.fecha ? fmtDate(n.fecha) : "",
-        n.tipo === "en" ? "En comisión" : "Para comisión",
+        n.tipo === "en" ? "En comisión" : "Para tratar",
         n.categoria || "",
         n.expediente || "",
         n.observacion || "",

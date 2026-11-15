@@ -59,7 +59,7 @@ export var TABLES = {
     label: "Comisión",
     cols: [
       C("fecha", "Comisión", "date"),
-      C("tipo", "Tipo", "select", ["para", "en"], { para: "Para comisión", en: "En comisión" }),
+      C("tipo", "Tipo", "select", ["para", "en"], { para: "Para tratar", en: "En comisión" }),
       C("categoria", "Categoría"),
       C("expediente", "Expte. / Proyecto"),
       C("observacion", "Observación"),
@@ -94,7 +94,7 @@ export var TABLES = {
       C("contacto", "Contacto"),
       C("horario", "Horario"),
       C("home", "Home", "select", ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"]),
-      C("vacaciones", "Vacaciones", "vacaciones"),
+      C("vacaciones", "Vacaciones/licencia", "vacaciones"),
     ],
     defaults: function () {
       return {};
