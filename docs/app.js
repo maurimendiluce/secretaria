@@ -2,6 +2,7 @@
 
 import { openBorradores } from "./js/borradores.js";
 import { openCalendario } from "./js/calendario.js";
+import { openComision } from "./js/comision.js";
 import { actualizarAvisoCopia, avisoCopiaInicial, copiaSeguridad } from "./js/copia.js";
 import { $, S, el, root, sb } from "./js/core.js";
 import { ocultarForm, openForm } from "./js/formulario.js";
@@ -115,6 +116,7 @@ function showApp() {
             onclick: function () {
               ocultarForm();
               if (n === "links") openLinks();
+              else if (n === "comision") openComision();
               else open(n);
             },
           },
@@ -172,7 +174,7 @@ function showApp() {
       ]),
   );
   actualizarAvisoCopia();
-  var pr = S.tab === "links" ? openLinks() : open(S.tab);
+  var pr = S.tab === "links" ? openLinks() : S.tab === "comision" ? openComision() : open(S.tab);
   pr.then(avisoCopiaInicial);
   return pr;
 }

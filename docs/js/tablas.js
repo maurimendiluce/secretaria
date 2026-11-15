@@ -4,7 +4,10 @@ import { today } from "./core.js";
 
 var ESTADOS = ["Pendiente", "En proceso", "Terminado"];
 
-var RESPONSABLES = ["Naty", "Mauri", "Naty / Mauri"];
+export var RESPONSABLES = ["Naty", "Mauri", "Naty / Mauri"];
+
+// Estados de los temas de la solapa Comisión (la solapa está en comision.js; acá solo se usan para Excel y copias).
+export var ESTADOS_COMISION = ["Pendiente", "Tratado", "Pasa a la próxima"];
 
 export var FORM_URL =
   "https://docs.google.com/forms/d/e/1FAIpQLSf_FP644YtLRl1_abTDKr4__p3CdIBGOSjZo6GvkKius5I1_g/viewform?embedded=true";
@@ -60,8 +63,9 @@ export var TABLES = {
       C("categoria", "Categoría"),
       C("expediente", "Expte. / Proyecto"),
       C("observacion", "Observación"),
-      C("estado", "Estado (comisión)"),
+      C("estado", "Estado (comisión)", "select", ESTADOS_COMISION),
     ],
+    // La solapa Comisión se dibuja en comision.js (no usa la grilla genérica); esta definición sirve para Excel, copias y Papelera.
     filters: ["fecha", "tipo"], // columnas con desplegable de filtro
     defaults: function () {
       return { fecha: today(), tipo: "para" };

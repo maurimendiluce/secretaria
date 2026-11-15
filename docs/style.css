@@ -450,3 +450,38 @@ td .vac-form input{border:1px solid var(--line);background:var(--card);color:var
 .vac-err{color:#c0392b;font-size:12px;min-height:0}
 .vac-acts{display:flex;gap:6px}
 .vac-ocupado{opacity:.6;pointer-events:none}
+/* Comisión: bloques por reunión */
+.cm-quick{display:flex;gap:6px;flex:1 1 560px;flex-wrap:wrap;align-items:center}
+.cm-quick .cm-obs-in{flex:1 1 260px;min-width:200px}
+.cm-quick .cm-expte{width:150px}
+#cm-counters{flex-wrap:wrap}
+.counter.on{outline:2px solid var(--acc)}
+.counter.st-Tratado{background:var(--ok)}
+.counter.st-Pasaalapróxima{background:var(--prog)}
+tr.st-Tratado{background:var(--ok)}
+tr.st-Pasaalapróxima{background:var(--prog)}
+.cm-wrap{display:flex;flex-direction:column;gap:12px}
+.cm-block{background:var(--card);border:1px solid var(--line);border-radius:10px}
+.cm-block.cm-next{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc)}
+.cm-block.cm-past{opacity:.9}
+.cm-block>summary{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 14px;cursor:pointer;list-style:none}
+.cm-block>summary::-webkit-details-marker{display:none}
+.cm-block>summary::before{content:"▸";color:var(--mut)}
+.cm-block[open]>summary::before{content:"▾"}
+.cm-title{font-weight:600}
+.cm-sum{color:var(--mut);font-size:12px}
+.cm-badge{font-size:11px;font-weight:600;padding:1px 8px;border-radius:999px;background:var(--tpl);color:var(--fg)}
+.cm-badge.hoy{background:var(--acc);color:#fff}
+.cm-actions{margin-left:auto;display:flex;gap:6px;align-items:center}
+.cm-actions button{padding:3px 10px;font-size:12px}
+.cm-actions .del:disabled{opacity:.35;cursor:not-allowed}
+.cm-body{padding:0 14px 14px}
+.cm-body h4{margin:10px 0 6px;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--mut)}
+.cm-nota{margin:2px 0 0}
+.cm-tablewrap{overflow-x:auto}
+.cm-tablewrap table{width:100%}
+td.cm-obs textarea{min-width:340px}
+td.cm-com select{min-width:110px}
+td.cm-act{width:auto;min-width:96px;white-space:nowrap}
+td.cm-act button{padding:2px 8px;font-size:12px}
+.cm-tarea-ok{color:var(--acc)}

@@ -2,6 +2,7 @@
 
 import { refrescarBorradores } from "./borradores.js";
 import { loadCalendario } from "./calendario.js";
+import { refrescarComision } from "./comision.js";
 import { S, abrirModal, cerrarModal, el, errMsg, fmtDate, sb } from "./core.js";
 import { refrescarNotas } from "./notas.js";
 import { refresh } from "./planilla.js";
@@ -9,7 +10,7 @@ import { TABLES } from "./tablas.js";
 
 // ---------- Papelera ----------
 // Todo lo que se borra se copia antes en la tabla "papelera" (ver supabase/papelera.sql) y se puede restaurar desde el botón Papelera.
-var NOMBRES_EXTRA = { borradores: "Borradores", notas: "Notas", eventos: "Calendario" };
+var NOMBRES_EXTRA = { borradores: "Borradores", notas: "Notas", eventos: "Calendario", comisiones_fechas: "Fechas de comisión" };
 
 function nombreTabla(t) {
   return (TABLES[t] && TABLES[t].label) || NOMBRES_EXTRA[t] || t;
@@ -143,5 +144,6 @@ function recargarPestana() {
   if (S.tab === "borradores") refrescarBorradores();
   else if (S.tab === "notas") refrescarNotas();
   else if (S.tab === "calendario") loadCalendario(true);
+  else if (S.tab === "comision") refrescarComision();
   else if (S.data) refresh();
 }
