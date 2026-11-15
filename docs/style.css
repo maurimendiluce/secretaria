@@ -485,3 +485,16 @@ td.cm-com select{min-width:110px}
 td.cm-act{width:auto;min-width:96px;white-space:nowrap}
 td.cm-act button{padding:2px 8px;font-size:12px}
 .cm-tarea-ok{color:var(--acc)}
+
+/* Comisión: categorías y archivo */
+.cm-quick .cm-cat-in{width:170px}
+td.cm-cat select{min-width:140px}
+.cm-cat-row{display:flex;align-items:center;gap:8px;margin:4px 0}
+.cm-cat-row input{flex:1}
+.cm-cat-row small{white-space:nowrap}
+.cm-cat-add{display:flex;gap:8px;margin-top:10px}
+.cm-cat-add input{flex:1}
+.cm-cats{max-height:50vh;overflow:auto}
+.cm-block.cm-arch{border-style:dashed;background:var(--bg)}
+tr.cm-arch-row{opacity:.7}
+#tools button.on{outline:2px solid var(--acc)}

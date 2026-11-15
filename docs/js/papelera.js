@@ -10,7 +10,7 @@ import { TABLES } from "./tablas.js";
 
 // ---------- Papelera ----------
 // Todo lo que se borra se copia antes en la tabla "papelera" (ver supabase/papelera.sql) y se puede restaurar desde el botón Papelera.
-var NOMBRES_EXTRA = { borradores: "Borradores", notas: "Notas", eventos: "Calendario", comisiones_fechas: "Fechas de comisión" };
+var NOMBRES_EXTRA = { borradores: "Borradores", notas: "Notas", eventos: "Calendario", comisiones_fechas: "Fechas de comisión", comision_categorias: "Categorías de comisión" };
 
 function nombreTabla(t) {
   return (TABLES[t] && TABLES[t].label) || NOMBRES_EXTRA[t] || t;

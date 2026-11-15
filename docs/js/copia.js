@@ -28,7 +28,7 @@ async function leerTodo(tabla) {
 
 export async function copiaSeguridad() {
   status("Preparando la copia…");
-  var nombres = Object.keys(TABLES).concat(["borradores", "notas", "eventos", "comisiones_fechas"]);
+  var nombres = Object.keys(TABLES).concat(["borradores", "notas", "eventos", "comisiones_fechas", "comision_categorias"]);
   var tablas = {},
     faltan = [],
     filas = 0;
