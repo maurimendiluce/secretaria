@@ -497,3 +497,25 @@ td.cm-cat select{min-width:140px}
 .cm-block.cm-arch{border-style:dashed;background:var(--bg)}
 tr.cm-arch-row{opacity:.7}
 #tools button.on{outline:2px solid var(--acc)}
+
+/* Sustanciaciones: color de fila según Estado */
+:root{--cs:#ece7f5}
+@media (prefers-color-scheme:dark){:root{--cs:#2f2748}}
+tr.st-Encomisión{background:var(--tpl)}tr.st-Parasustanciar{background:var(--prog)}tr.st-Sustanciado{background:var(--ok)}tr.st-EnConsejoSuperior{background:var(--cs)}
+
+/* Panel de estadísticas */
+.stats{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 16px;margin:0 0 14px}
+.stats h3{margin:0 0 2px}
+.stats>.note{margin:0 0 10px}
+.stat-tiles{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.stat-tile{display:flex;flex-direction:column;min-width:110px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 14px}
+.stat-tile b{font-size:24px;line-height:1.1}.stat-tile span{font-size:12px;color:var(--mut)}.stat-tile small{color:var(--mut)}
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+.stat-card{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+.stat-card h4{margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--mut)}
+.stat-row{display:grid;grid-template-columns:130px 1fr 74px;gap:8px;align-items:center;font-size:13px;margin:3px 0}
+.stat-lab{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.stat-bar{background:var(--line);border-radius:999px;height:10px;overflow:hidden}
+.stat-bar i{display:block;height:100%;background:var(--acc);border-radius:999px}
+.stat-n{text-align:right;font-variant-numeric:tabular-nums}.stat-n small{color:var(--mut)}
+.stat-dur{display:flex;gap:8px;align-items:baseline;font-size:13px;margin:4px 0}.stat-dur span{width:80px;color:var(--mut)}.stat-dur small{color:var(--mut)}

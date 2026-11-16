@@ -1,6 +1,7 @@
 // Pestañas de tabla (Seguimiento, Comisión, Departamentos, Secretaría, Cuentas de mail, Links): grilla, filtros, edición y Excel.
 
-import { $, S, byText, el, errMsg, fmtDate, grow, sb, status, today } from "./core.js";
+import { $, S, byText, el, errMsg, fmtDate, grow, normalizar, sb, status, today } from "./core.js";
+import { construirEstadisticas } from "./estadisticas.js";
 import { liveOff, unsubscribe } from "./live.js";
 import { borrarFila } from "./papelera.js";
 import { TABLES } from "./tablas.js";
@@ -18,7 +19,7 @@ async function fetchTable(name) {
   return {
     name: name,
     cols: t.cols.map(function (c) {
-      return { h: c.h, i: c.k, type: c.type, options: c.options, optionLabels: c.optionLabels, link: c.link };
+      return { h: c.h, i: c.k, type: c.type, options: c.options, optionLabels: c.optionLabels, link: c.link, yearFilter: c.yearFilter };
     }),
     rows: r.data.map(function (row) {
       return {
@@ -34,6 +35,7 @@ async function fetchTable(name) {
 
 export async function open(name) {
   S.tab = name;
+  S.statsOpen = false;
   liveOff();
   document.querySelectorAll(".tab").forEach(function (b) {
     b.classList.toggle("on", b.getAttribute("data-n") === name);
@@ -135,7 +137,7 @@ function tools() {
       ),
     );
   }
-  items.push(el("input", { type: "search", id: "q", placeholder: "Buscar…", oninput: filter }));
+  items.push(el("input", { type: "search", id: "q", placeholder: TABLES[S.tab].buscar || "Buscar…", oninput: filter }));
   // Filtros de selección múltiple. Al entrar a la pestaña arrancan con los valores de filterDefaults (si los hay).
   var defs = TABLES[S.tab].filterDefaults || {};
   S.sel = {};
@@ -161,6 +163,7 @@ function tools() {
     );
   });
   items.push(el("button", { onclick: add }, "+ Nueva fila"));
+  if (TABLES[S.tab].stats) items.push(el("button", { type: "button", class: "ghost", id: "stats-btn", onclick: toggleStats }, "Estadísticas"));
   items.push(
     el(
       "button",
@@ -201,7 +204,13 @@ document.addEventListener("keydown", function (ev) {
 });
 
 function optLabel(c, v) {
+  if (c.yearFilter) return v === "" ? "Sin fecha" : v;
   return c.type === "date" ? fmtDate(v) : (c.optionLabels && c.optionLabels[v]) || v;
+}
+
+// Valor de una celda tal como lo ve el filtro de su columna (en las columnas de fecha con filtro por año, solo el año).
+function valorFiltro(c, v) {
+  return c.yearFilter ? String(v || "").slice(0, 4) : v;
 }
 
 function mfLabel(mf, i) {
@@ -299,7 +308,22 @@ function fillFilters() {
     var i = +mf.getAttribute("data-i"),
       c = S.data.cols[i],
       opts;
-    if (c.type === "date") {
+    if (c.type === "date" && c.yearFilter) {
+      // solo años (sacados de los datos) y, si alguna fila no tiene fecha, «Sin fecha»
+      var anios = {},
+        sinFecha = false;
+      S.data.rows.forEach(function (r) {
+        if (r.v[i]) anios[r.v[i].slice(0, 4)] = 1;
+        else sinFecha = true;
+      });
+      opts = Object.keys(anios)
+        .sort()
+        .reverse()
+        .map(function (y) {
+          return [y, y];
+        });
+      if (sinFecha) opts.push(["", "Sin fecha"]);
+    } else if (c.type === "date") {
       var seen = {};
       S.data.rows.forEach(function (r) {
         if (r.v[i]) seen[r.v[i]] = 1;
@@ -519,13 +543,13 @@ function revealRow(id) {
   if (!r) return;
   var cleared = [];
   Object.keys(S.sel).forEach(function (i) {
-    if (S.sel[i].length && S.sel[i].indexOf(r.v[i]) < 0) {
+    if (S.sel[i].length && S.sel[i].indexOf(valorFiltro(S.data.cols[i], r.v[i])) < 0) {
       S.sel[i] = [];
       cleared.push(S.data.cols[i].h);
     }
   });
   var q = $("q");
-  if (q && q.value && r.v.join(" ").toLowerCase().indexOf(q.value.toLowerCase()) < 0) {
+  if (q && q.value && !coincide(r, q.value)) {
     q.value = "";
     cleared.push("búsqueda");
   }
@@ -545,8 +569,29 @@ async function del(r) {
   await load(false);
 }
 
+// Búsqueda en toda la fila: sin importar mayúsculas ni tildes ("perez" encuentra "Pérez"), y por palabras sueltas
+// ("garcia dm" encuentra filas que tengan las dos). Las fechas también se buscan como dd/mm/aaaa.
+function textoFila(r) {
+  return normalizar(
+    r.v
+      .map(function (v, i) {
+        return S.data.cols[i].type === "date" && v ? v + " " + fmtDate(v) : v;
+      })
+      .join(" "),
+  );
+}
+
+function coincide(r, q) {
+  var palabras = normalizar(q).split(/\s+/).filter(Boolean);
+  if (!palabras.length) return true;
+  var t = textoFila(r);
+  return palabras.every(function (p) {
+    return t.indexOf(p) >= 0;
+  });
+}
+
 function filter() {
-  var q = (($("q") && $("q").value) || "").toLowerCase();
+  var q = ($("q") && $("q").value) || "";
   // Cada filtro es una lista de valores permitidos: la fila se muestra si su valor está en la lista (lista vacía = sin filtro)
   var active = Object.keys(S.sel)
     .filter(function (i) {
@@ -560,19 +605,45 @@ function filter() {
     byId[r.id] = r;
   });
   var shown = 0;
+  S.visibles = [];
   document.querySelectorAll("#grid tbody tr").forEach(function (tr) {
     var r = byId[tr.getAttribute("data-id")];
     if (!r) return;
     var ok =
-      (!q || r.v.join(" ").toLowerCase().indexOf(q) >= 0) &&
+      coincide(r, q) &&
       active.every(function (f) {
-        return f.v.indexOf(r.v[f.i]) >= 0;
+        return f.v.indexOf(valorFiltro(S.data.cols[f.i], r.v[f.i])) >= 0;
       });
     tr.style.display = ok ? "" : "none";
-    if (ok) shown++;
+    if (ok) {
+      shown++;
+      S.visibles.push(r);
+    }
   });
   var cnt = $("count");
   if (cnt) cnt.textContent = "Mostrando " + shown + " de " + S.data.rows.length;
+  statsPanel();
+}
+
+// ---------- Estadísticas (ver `stats` en tablas.js) ----------
+function toggleStats() {
+  S.statsOpen = !S.statsOpen;
+  statsPanel();
+}
+
+// Muestra, actualiza o quita el panel. Vive dentro de #grid, así que desaparece solo al cambiar de pestaña.
+function statsPanel() {
+  var cfg = TABLES[S.tab] && TABLES[S.tab].stats,
+    p = $("stats"),
+    btn = $("stats-btn");
+  if (btn) btn.classList.toggle("on", !!S.statsOpen);
+  if (!cfg || !S.statsOpen || !S.data) {
+    if (p) p.remove();
+    return;
+  }
+  var nuevo = construirEstadisticas(cfg, S.data.cols, S.visibles || [], S.data.rows.length);
+  if (p) p.replaceWith(nuevo);
+  else $("grid").prepend(nuevo);
 }
 
 // ---------- Exportar a Excel (todas las pestañas) ----------

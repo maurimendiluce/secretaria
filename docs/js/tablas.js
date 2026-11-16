@@ -20,12 +20,24 @@ function C(k, h, type, options, labels) {
   return { k: k, h: h, type: type || "text", options: options || null, optionLabels: labels || null };
 }
 
+// Columna de fecha cuyo filtro ofrece solo años (más «Sin fecha» si alguna fila no la tiene).
+function Y(k, h) {
+  var c = C(k, h, "date");
+  c.yearFilter = true;
+  return c;
+}
+
 // Columna cuyo contenido, si es una dirección web, se muestra con un botón para abrirla.
 function L(k, h) {
   var c = C(k, h);
   c.link = true;
   return c;
 }
+
+// Solapa Sustanciaciones. Para agregar un departamento, un responsable, etc.: sumarlo en la lista que corresponda.
+var DPTOS_SUST = ["DM", "DC", "DF", "IC", "DG", "DFBMC", "DQO", "DQB", "DQIAQF", "DBBE", "DEGE", "DI", "DCAO", "CCPEMS"];
+var RESPONSABLES_SUST = ["Eduardo", "Valentín", "Milena"];
+var ESTADOS_SUST = ["En comisión", "Para sustanciar", "Sustanciado", "En Consejo Superior"];
 
 // Cada pestaña = una tabla de Supabase (ver supabase/schema.sql). Para sumar una columna: agregarla acá y en el schema.
 export var TABLES = {
@@ -69,6 +81,54 @@ export var TABLES = {
     filters: ["fecha", "tipo"], // columnas con desplegable de filtro
     defaults: function () {
       return { fecha: today(), tipo: "para" };
+    },
+  },
+  sustanciaciones: {
+    label: "Sustanciaciones",
+    cols: [
+      C("expediente", "N° de expediente"),
+      Y("fecha_llamado", "Fecha de llamado"),
+      C("dpto", "Departamento", "select", DPTOS_SUST),
+      C("tipo", "Renovación / Nuevo", "select", ["Renovación", "Nuevo"]),
+      C("categoria", "Categoría", "select", ["Adjunto", "Asociado", "Titular"]),
+      C("dedicacion", "Dedicación", "select", ["Simple", "Semi exclusiva", "Exclusiva"]),
+      C("area", "Área"),
+      C("titular", "Titular del cargo"),
+      C("postulantes", "Postulantes"),
+      C("jurados", "Jurados"),
+      C("responsable", "Responsable", "select", RESPONSABLES_SUST),
+      C("estado", "Estado", "select", ESTADOS_SUST),
+      Y("fecha_sust", "Fecha de sustanciación"),
+    ],
+    // Filtros (uno por columna, salvo expediente, área, titular, postulantes y jurados). Las fechas filtran solo por año.
+    filters: ["fecha_llamado", "dpto", "tipo", "categoria", "dedicacion", "responsable", "estado", "fecha_sust"],
+    buscar: "Buscar en toda la planilla (nombre, expediente, área…)",
+    // Panel «Estadísticas»: se calcula sobre las filas que se ven (según búsqueda y filtros). Ver estadisticas.js.
+    stats: {
+      // Tarjetas de resumen: cuántas filas tienen alguno de esos valores
+      resumen: [
+        { titulo: "En trámite", col: "estado", valores: ["En comisión", "Para sustanciar"] },
+        { titulo: "Sustanciados", col: "estado", valores: ["Sustanciado", "En Consejo Superior"] },
+      ],
+      // Gráficos de barras: filas por valor de una columna (ceros: mostrar también los valores en 0)
+      cuentas: [
+        { col: "estado", titulo: "Por estado", ceros: true },
+        { col: "dpto", titulo: "Por departamento" },
+        { col: "responsable", titulo: "Por responsable" },
+        { col: "tipo", titulo: "Renovación o nuevo" },
+        { col: "categoria", titulo: "Por categoría" },
+        { col: "dedicacion", titulo: "Por dedicación" },
+      ],
+      // Filas por año de una fecha
+      anios: [
+        { col: "fecha_llamado", titulo: "Llamados por año" },
+        { col: "fecha_sust", titulo: "Sustanciaciones por año" },
+      ],
+      // Tiempo entre dos fechas
+      duracion: { desde: "fecha_llamado", hasta: "fecha_sust", titulo: "Del llamado a la sustanciación" },
+    },
+    defaults: function () {
+      return { fecha_llamado: today(), estado: "En comisión" };
     },
   },
   contactos_dptos: {
