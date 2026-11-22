@@ -531,3 +531,8 @@ tr.st-Encomisión{background:var(--tpl)}tr.st-Parasustanciar{background:var(--pr
 .stat-svg text.cnt{font-size:9px}
 .tend{margin:2px 0;font-weight:600}
 .tend.baja{color:var(--c-verde)}.tend.sube{color:var(--c-rojo)}.tend.igual{color:var(--mut)}
+
+/* Sustanciaciones: estado Demorado, la fila se pinta de rojo */
+:root{--dem:#f7c6c6}
+@media (prefers-color-scheme:dark){:root{--dem:#5a2424}}
+tr.st-Demorado{background:var(--dem)}

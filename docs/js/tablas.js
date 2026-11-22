@@ -37,7 +37,7 @@ function L(k, h) {
 // Solapa Sustanciaciones. Para agregar un departamento, un responsable, etc.: sumarlo en la lista que corresponda.
 var DPTOS_SUST = ["DM", "DC", "DF", "IC", "DG", "DFBMC", "DQO", "DQB", "DQIAQF", "DBBE", "DEGE", "DI", "DCAO", "CCPEMS"];
 var RESPONSABLES_SUST = ["Eduardo", "Valentín", "Milena"];
-var ESTADOS_SUST = ["En comisión", "Para sustanciar", "Sustanciado", "En Consejo Superior"];
+var ESTADOS_SUST = ["En comisión", "Para sustanciar", "Sustanciado", "En Consejo Superior", "Demorado"];
 
 // Cada pestaña = una tabla de Supabase (ver supabase/schema.sql). Para sumar una columna: agregarla acá y en el schema.
 export var TABLES = {
@@ -91,7 +91,7 @@ export var TABLES = {
       C("dpto", "Departamento", "select", DPTOS_SUST),
       C("tipo", "Renovación / Nuevo", "select", ["Renovación", "Nuevo"]),
       C("categoria", "Categoría", "select", ["Adjunto", "Asociado", "Titular"]),
-      C("dedicacion", "Dedicación", "select", ["Simple", "Semi exclusiva", "Exclusiva"]),
+      C("dedicacion", "Dedicación", "select", ["Parcial", "Semi exclusiva", "Exclusiva"]),
       C("area", "Área"),
       C("titular", "Titular del cargo"),
       C("postulantes", "Postulantes"),
@@ -100,7 +100,7 @@ export var TABLES = {
       C("estado", "Estado", "select", ESTADOS_SUST),
       Y("fecha_sust", "Fecha de sustanciación"),
       C("ganador", "Ganador/a del concurso"),
-      C("promociono", "¿Promocionó de categoría?", "select", ["Sí", "No"]),
+      C("promociono", "Promoción", "select", ["Sí", "No"]),
     ],
     // Filtros (uno por columna, salvo expediente, área, titular, postulantes, jurados y ganador/a). Las fechas filtran solo por año.
     filters: ["fecha_llamado", "dpto", "tipo", "categoria", "dedicacion", "responsable", "estado", "fecha_sust", "promociono"],
@@ -110,6 +110,7 @@ export var TABLES = {
       // Tarjetas de resumen: cuántas filas tienen alguno de esos valores
       resumen: [
         { titulo: "En trámite", col: "estado", valores: ["En comisión", "Para sustanciar"] },
+        { titulo: "Demorados", col: "estado", valores: ["Demorado"] },
         { titulo: "Sustanciados", col: "estado", valores: ["Sustanciado", "En Consejo Superior"] },
         // sobreRespondidas: el porcentaje se calcula sobre las filas que tienen dato en esa columna, no sobre todas
         { titulo: "Promocionaron", col: "promociono", valores: ["Sí"], sobreRespondidas: true },

@@ -514,6 +514,7 @@ async function save(r, k, c, inp, tr) {
   r.v[k] = inp.value;
   marcarEdad(r, tr);
   contadores();
+  statsPanel(); // si el panel de estadísticas está abierto, se actualiza con el cambio
   r.by = byText(res.data);
   tr.title = "Editado por " + r.by;
   if (c.h.toLowerCase() === "estado") tr.className = inp.value ? "st-" + inp.value.replace(/\s/g, "") : "";
