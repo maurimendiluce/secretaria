@@ -136,14 +136,141 @@ function duracion(cols, filas, c) {
   return card;
 }
 
-function tarjeta(titulo, n, total) {
+// `detalle`: texto chico debajo (por defecto, el porcentaje sobre `total`)
+function tarjeta(titulo, n, total, detalle) {
   return el(
     "div",
     { class: "stat-tile" },
     el("b", {}, String(n)),
     el("span", {}, titulo),
-    total != null ? el("small", {}, pct(n, total) + "%") : null,
+    detalle ? el("small", {}, detalle) : total != null ? el("small", {}, pct(n, total) + "%") : null,
   );
+}
+
+var SVG = "http://www.w3.org/2000/svg";
+
+function svg(tag, attrs, hijos) {
+  var e = document.createElementNS(SVG, tag);
+  Object.keys(attrs || {}).forEach(function (k) {
+    e.setAttribute(k, attrs[k]);
+  });
+  (hijos || []).forEach(function (h) {
+    e.append(typeof h === "string" ? document.createTextNode(h) : h);
+  });
+  return e;
+}
+
+// Cambio entre dos puntos {y, prom}: flecha, clase de color y texto. Menos de 3% se considera estable.
+function cambio(a, b, prefijo) {
+  var d = b.prom - a.prom,
+    p = a.prom ? (d * 100) / a.prom : 0,
+    dat = nf(a.prom) + " días (" + a.y + ") a " + nf(b.prom) + " días (" + b.y + ")";
+  if (Math.abs(p) < 3) return el("p", { class: "tend igual" }, prefijo + "→ Se mantuvo estable: de " + dat + ".");
+  var baja = d < 0;
+  return el(
+    "p",
+    { class: "tend " + (baja ? "baja" : "sube") },
+    prefijo + (baja ? "↓ Bajó" : "↑ Subió") + " " + nf(Math.abs(d)) + " días (" + (baja ? "−" : "+") + nf(Math.abs(p)) + "%): de " + dat + ".",
+  );
+}
+
+// Evolución del promedio: un punto por año (de la fecha «hasta»), con el promedio de los concursos que terminaron ese año.
+function progresion(cols, filas, c) {
+  var i = idx(cols, c.desde),
+    j = idx(cols, c.hasta);
+  if (i < 0 || j < 0) return null;
+  var por = {};
+  filas.forEach(function (r) {
+    if (!r.v[i] || !r.v[j]) return;
+    var d = dias(r.v[i], r.v[j]);
+    if (d < 0) return;
+    var y = r.v[j].slice(0, 4);
+    (por[y] = por[y] || []).push(d);
+  });
+  var pts = Object.keys(por)
+    .sort()
+    .map(function (y) {
+      var ds = por[y];
+      return {
+        y: +y,
+        n: ds.length,
+        prom:
+          ds.reduce(function (a, b) {
+            return a + b;
+          }, 0) / ds.length,
+      };
+    });
+  var card = el("div", { class: "stat-card stat-wide" }, el("h4", {}, c.titulo));
+  if (!pts.length) {
+    card.append(el("p", { class: "note" }, "Todavía no hay filas con las dos fechas."));
+    return card;
+  }
+  if (pts.length < 2) card.append(el("p", { class: "note" }, "Hace falta más de un año con sustanciaciones para ver si el promedio sube o baja."));
+  else {
+    card.append(cambio(pts[pts.length - 2], pts[pts.length - 1], "Último año: "));
+    if (pts.length > 2) card.append(cambio(pts[0], pts[pts.length - 1], "Desde " + pts[0].y + ": "));
+  }
+
+  // Gráfico de líneas
+  var W = 560,
+    H = 190,
+    L = 44,
+    R = 18,
+    T = 22,
+    B = 30,
+    ymin = pts[0].y,
+    ymax = pts[pts.length - 1].y,
+    top = Math.max.apply(
+      null,
+      pts.map(function (p) {
+        return p.prom;
+      }),
+    ),
+    tope = Math.max(top * 1.15, 1);
+  // los puntos de los extremos quedan un poco adentro, para que sus etiquetas no se pisen con el eje ni se corten
+  var X0 = L + 30,
+    X1 = W - R - 30;
+  function px(y) {
+    return ymax === ymin ? (X0 + X1) / 2 : X0 + ((y - ymin) / (ymax - ymin)) * (X1 - X0);
+  }
+  function py(v) {
+    return T + (1 - v / tope) * (H - T - B);
+  }
+  var g = svg("svg", { class: "stat-svg", viewBox: "0 0 " + W + " " + H, role: "img", "aria-label": c.titulo });
+  [0, 0.5, 1].forEach(function (f) {
+    var v = tope * f;
+    g.append(svg("line", { class: "gr", x1: L, x2: W - R, y1: py(v), y2: py(v) }), svg("text", { x: L - 6, y: py(v) + 3, "text-anchor": "end" }, [nf(v)]));
+  });
+  if (pts.length > 1)
+    g.append(
+      svg("polyline", {
+        class: "ln",
+        points: pts
+          .map(function (p) {
+            return px(p.y) + "," + py(p.prom);
+          })
+          .join(" "),
+      }),
+    );
+  pts.forEach(function (p) {
+    g.append(
+      svg("circle", { class: "pt", cx: px(p.y), cy: py(p.prom), r: 4 }, [
+        svg("title", {}, [p.y + ": " + nf(p.prom) + " días de promedio (" + p.n + (p.n === 1 ? " concurso" : " concursos") + ")"]),
+      ]),
+      svg("text", { class: "val", x: px(p.y), y: py(p.prom) - 9, "text-anchor": "middle" }, [nf(p.prom)]),
+      svg("text", { x: px(p.y), y: H - 12, "text-anchor": "middle" }, [String(p.y)]),
+      svg("text", { class: "cnt", x: px(p.y), y: H - 1, "text-anchor": "middle" }, ["(" + p.n + ")"]),
+    );
+  });
+  card.append(g);
+  card.append(
+    el(
+      "p",
+      { class: "note" },
+      "Días promedio del llamado a la sustanciación, según el año en que se sustanció (entre paréntesis, cuántos concursos). Usa las filas que se ven: si filtrás por un año queda un solo punto.",
+    ),
+  );
+  return card;
 }
 
 // cfg: `stats` de la pestaña; cols: columnas; filas: filas que se ven; totalTabla: cantidad de filas de la pestaña
@@ -160,7 +287,12 @@ export function construirEstadisticas(cfg, cols, filas, totalTabla) {
     var k = filas.filter(function (f) {
       return r.valores.indexOf(f.v[i]) >= 0;
     }).length;
-    tiles.push(tarjeta(r.titulo, k, n));
+    if (r.sobreRespondidas) {
+      var con = filas.filter(function (f) {
+        return f.v[i];
+      }).length;
+      tiles.push(tarjeta(r.titulo, k, n, con ? pct(k, con) + "% de los " + con + " con dato" : "sin datos"));
+    } else tiles.push(tarjeta(r.titulo, k, n));
   });
   var tarjetas = [];
   (cfg.cuentas || []).forEach(function (c) {
@@ -170,6 +302,7 @@ export function construirEstadisticas(cfg, cols, filas, totalTabla) {
     tarjetas.push(porAnio(cols, filas, c));
   });
   if (cfg.duracion) tarjetas.push(duracion(cols, filas, cfg.duracion));
+  if (cfg.progresion) tarjetas.push(progresion(cols, filas, cfg.progresion));
   return el(
     "section",
     { class: "stats", id: "stats" },

@@ -519,3 +519,15 @@ tr.st-Encomisión{background:var(--tpl)}tr.st-Parasustanciar{background:var(--pr
 .stat-bar i{display:block;height:100%;background:var(--acc);border-radius:999px}
 .stat-n{text-align:right;font-variant-numeric:tabular-nums}.stat-n small{color:var(--mut)}
 .stat-dur{display:flex;gap:8px;align-items:baseline;font-size:13px;margin:4px 0}.stat-dur span{width:80px;color:var(--mut)}.stat-dur small{color:var(--mut)}
+
+/* Estadísticas: evolución del promedio */
+.stat-wide{grid-column:1/-1}
+.stat-svg{width:100%;height:auto;max-height:230px;display:block;margin:6px 0}
+.stat-svg .gr{stroke:var(--line);stroke-width:1}
+.stat-svg .ln{stroke:var(--acc);stroke-width:2.5;fill:none;stroke-linejoin:round}
+.stat-svg .pt{fill:var(--acc)}
+.stat-svg text{fill:var(--mut);font-size:11px}
+.stat-svg text.val{fill:var(--fg);font-weight:600}
+.stat-svg text.cnt{font-size:9px}
+.tend{margin:2px 0;font-weight:600}
+.tend.baja{color:var(--c-verde)}.tend.sube{color:var(--c-rojo)}.tend.igual{color:var(--mut)}

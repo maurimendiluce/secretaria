@@ -99,9 +99,11 @@ export var TABLES = {
       C("responsable", "Responsable", "select", RESPONSABLES_SUST),
       C("estado", "Estado", "select", ESTADOS_SUST),
       Y("fecha_sust", "Fecha de sustanciación"),
+      C("ganador", "Ganador/a del concurso"),
+      C("promociono", "¿Promocionó de categoría?", "select", ["Sí", "No"]),
     ],
-    // Filtros (uno por columna, salvo expediente, área, titular, postulantes y jurados). Las fechas filtran solo por año.
-    filters: ["fecha_llamado", "dpto", "tipo", "categoria", "dedicacion", "responsable", "estado", "fecha_sust"],
+    // Filtros (uno por columna, salvo expediente, área, titular, postulantes, jurados y ganador/a). Las fechas filtran solo por año.
+    filters: ["fecha_llamado", "dpto", "tipo", "categoria", "dedicacion", "responsable", "estado", "fecha_sust", "promociono"],
     buscar: "Buscar en toda la planilla (nombre, expediente, área…)",
     // Panel «Estadísticas»: se calcula sobre las filas que se ven (según búsqueda y filtros). Ver estadisticas.js.
     stats: {
@@ -109,6 +111,8 @@ export var TABLES = {
       resumen: [
         { titulo: "En trámite", col: "estado", valores: ["En comisión", "Para sustanciar"] },
         { titulo: "Sustanciados", col: "estado", valores: ["Sustanciado", "En Consejo Superior"] },
+        // sobreRespondidas: el porcentaje se calcula sobre las filas que tienen dato en esa columna, no sobre todas
+        { titulo: "Promocionaron", col: "promociono", valores: ["Sí"], sobreRespondidas: true },
       ],
       // Gráficos de barras: filas por valor de una columna (ceros: mostrar también los valores en 0)
       cuentas: [
@@ -118,6 +122,7 @@ export var TABLES = {
         { col: "tipo", titulo: "Renovación o nuevo" },
         { col: "categoria", titulo: "Por categoría" },
         { col: "dedicacion", titulo: "Por dedicación" },
+        { col: "promociono", titulo: "Promoción de categoría" },
       ],
       // Filas por año de una fecha
       anios: [
@@ -126,6 +131,8 @@ export var TABLES = {
       ],
       // Tiempo entre dos fechas
       duracion: { desde: "fecha_llamado", hasta: "fecha_sust", titulo: "Del llamado a la sustanciación" },
+      // Cómo evoluciona ese promedio: un punto por año de la fecha «hasta» (sube o baja)
+      progresion: { desde: "fecha_llamado", hasta: "fecha_sust", titulo: "Evolución del promedio (del llamado a la sustanciación)" },
     },
     defaults: function () {
       return { fecha_llamado: today(), estado: "En comisión" };
