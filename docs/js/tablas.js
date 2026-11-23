@@ -101,6 +101,7 @@ export var TABLES = {
       Y("fecha_sust", "Fecha de sustanciación"),
       C("ganador", "Ganador/a del concurso"),
       C("promociono", "Promoción", "select", ["Sí", "No"]),
+      C("observaciones", "Observaciones"),
     ],
     // Filtros (uno por columna, salvo expediente, área, titular, postulantes, jurados y ganador/a). Las fechas filtran solo por año.
     filters: ["fecha_llamado", "dpto", "tipo", "categoria", "dedicacion", "responsable", "estado", "fecha_sust", "promociono"],
