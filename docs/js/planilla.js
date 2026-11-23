@@ -281,9 +281,14 @@ function grid() {
   var di = d.cols.findIndex(function (c) {
     return c.type === "date";
   });
+  // Sin fecha, la fila va al final; salvo en las pestañas con `vaciasArriba` (filas nuevas en blanco: quedan arriba para completarlas).
+  var sinFecha = TABLES[S.tab] && TABLES[S.tab].vaciasArriba ? "9999-12-31" : "";
+  function fechaDe(r) {
+    return r.v[di] || sinFecha;
+  }
   if (di >= 0)
     rows.reverse().sort(function (a, b) {
-      return a.v[di] < b.v[di] ? 1 : a.v[di] > b.v[di] ? -1 : 0;
+      return fechaDe(a) < fechaDe(b) ? 1 : fechaDe(a) > fechaDe(b) ? -1 : 0;
     }); // más nuevo arriba
   else rows.reverse();
   var tb = el("tbody");

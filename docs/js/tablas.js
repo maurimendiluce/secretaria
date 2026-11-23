@@ -136,8 +136,10 @@ export var TABLES = {
       // Cómo evoluciona ese promedio: un punto por año de la fecha «hasta» (sube o baja)
       progresion: { desde: "fecha_llamado", hasta: "fecha_sust", titulo: "Evolución del promedio (del llamado a la sustanciación)" },
     },
+    // La fila nueva arranca totalmente en blanco; mientras no tenga fecha de llamado se muestra arriba de todo.
+    vaciasArriba: true,
     defaults: function () {
-      return { fecha_llamado: today(), estado: "En comisión" };
+      return {};
     },
   },
   contactos_dptos: {
