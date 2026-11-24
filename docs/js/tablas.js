@@ -37,7 +37,7 @@ function L(k, h) {
 // Solapa Sustanciaciones. Para agregar un departamento, un responsable, etc.: sumarlo en la lista que corresponda.
 var DPTOS_SUST = ["DM", "DC", "DF", "IC", "DG", "DFBMC", "DQO", "DQB", "DQIAQF", "DBBE", "DEGE", "DI", "DCAO", "CCPEMS"];
 var RESPONSABLES_SUST = ["Eduardo", "Valentín", "Milena"];
-var ESTADOS_SUST = ["En comisión", "Para sustanciar", "Sustanciado", "En Consejo Superior", "Demorado"];
+var ESTADOS_SUST = ["En comisión", "Para sustanciar", "Sustanciado", "Falta dictamen", "Demorado"];
 
 // Cada pestaña = una tabla de Supabase (ver supabase/schema.sql). Para sumar una columna: agregarla acá y en el schema.
 export var TABLES = {
@@ -112,7 +112,7 @@ export var TABLES = {
       resumen: [
         { titulo: "En trámite", col: "estado", valores: ["En comisión", "Para sustanciar"] },
         { titulo: "Demorados", col: "estado", valores: ["Demorado"] },
-        { titulo: "Sustanciados", col: "estado", valores: ["Sustanciado", "En Consejo Superior"] },
+        { titulo: "Sustanciados", col: "estado", valores: ["Sustanciado", "Falta dictamen"] },
         // sobreRespondidas: el porcentaje se calcula sobre las filas que tienen dato en esa columna, no sobre todas
         { titulo: "Promocionaron", col: "promociono", valores: ["Sí"], sobreRespondidas: true },
       ],

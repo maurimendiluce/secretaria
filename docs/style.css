@@ -501,8 +501,7 @@ tr.cm-arch-row{opacity:.7}
 /* Sustanciaciones: color de fila según Estado */
 :root{--cs:#ece7f5}
 @media (prefers-color-scheme:dark){:root{--cs:#2f2748}}
-tr.st-Encomisión{background:var(--tpl)}tr.st-Parasustanciar{background:var(--prog)}tr.st-Sustanciado{background:var(--ok)}tr.st-EnConsejoSuperior{background:var(--cs)}
-
+tr.st-Encomisión{background:var(--tpl)}tr.st-Parasustanciar{background:var(--prog)}tr.st-Sustanciado{background:var(--ok)}tr.st-Faltadictamen{background:var(--cs)}
 /* Panel de estadísticas */
 .stats{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 16px;margin:0 0 14px}
 .stats h3{margin:0 0 2px}
